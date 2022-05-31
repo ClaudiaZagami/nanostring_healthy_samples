@@ -315,6 +315,7 @@ pData(target_nano_healthy_SQC)$GenesDetected <-
 pData(target_nano_healthy_SQC)$GeneDetectionRate <-
   pData(target_nano_healthy_SQC)$GenesDetected / nrow(target_nano_healthy_SQC)
 
+######How can I see for example 3%?
 # Determine detection thresholds: 1%, 5%, 10%, 15%, >15%
 pData(target_nano_healthy_SQC)$DetectionThreshold <- 
   cut(pData(target_nano_healthy_SQC)$GeneDetectionRate,
@@ -357,4 +358,168 @@ kable(table(pData(target_nano_healthy_SQC)$DetectionThreshold,
 
 kable(table(pData(target_nano_healthy_SQC)$DetectionThreshold,
             pData(target_nano_healthy_SQC)$patient))
+
+#I cannot filter the segments with 1-5% detection rate because I would delete all the data
+
+##now I can determine the gene detection rate for genes across the study
+
+library(scales) # for percent
+
+#Can't really understand this bit of the code
+# Calculate detection rate:
+LOQ_Mat <- LOQ_Mat[, colnames(target_nano_healthy_SQC)]
+fData(target_nano_healthy_SQC)$DetectedSegments <- rowSums(LOQ_Mat, na.rm = TRUE)
+fData(target_nano_healthy_SQC)$DetectionRate <-
+  fData(target_nano_healthy_SQC)$DetectedSegments / nrow(pData(target_nano_healthy_SQC))
+
+# Gene of interest detection table
+#this is just to understand the concept
+
+genesoi <- c("WNT8A", "WNT10A", "BMP8A", "MAPK6", "MAPKAPK3", "MAPK14",
+         "PGC", "COL1A2", "COL5A2", "MUC5AC", "MUC6")
+genesoi_df <- data.frame(
+  Gene = genesoi,
+  Number = fData(target_nano_healthy_SQC)[genesoi, "DetectedSegments"],
+  DetectionRate = percent(fData(target_nano_healthy_SQC)[genesoi, "DetectionRate"]))
+
+#not really understanding the df I get from this function. 
+
+##Gene filtering 
+
+plot_detect <- data.frame(Freq = c(1, 5, 10, 20, 30, 50))
+plot_detect$Number <-
+  unlist(lapply(c(0.01, 0.05, 0.1, 0.2, 0.3, 0.5),
+                function(x) {sum(fData(target_nano_healthy_SQC)$DetectionRate >= x)}))
+plot_detect$Rate <- plot_detect$Number / nrow(fData(target_nano_healthy_SQC))
+rownames(plot_detect) <- plot_detect$Freq
+
+#visualize
+#total number of genes detected in different percentages of segments
+#understand global gene detection in our study and select how many low detected 
+#genes to filter out of the dataset
+
+ggplot(plot_detect, aes(x = as.factor(Freq), y = Rate, fill = Rate)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = formatC(Number, format = "d", big.mark = ",")),
+            vjust = 1.6, color = "black", size = 4) +
+  scale_fill_gradient2(low = "orange2", mid = "lightblue",
+                       high = "dodgerblue3", midpoint = 0.65,
+                       limits = c(0,1),
+                       labels = scales::percent) +
+  theme_bw() +
+  scale_y_continuous(labels = scales::percent, limits = c(0,1),
+                     expand = expansion(mult = c(0, 0))) +
+  labs(x = "% of Segments",
+       y = "Genes Detected, % of Panel > LOQ")
+
+#5% of the segments have 2062 genes detected so the thrashold I would use to 
+#normalize has to be at least 5% otherwise, with 10% I would loose too many genes
+
+# Subset to target genes detected in at least 5% of the samples.
+# Also manually include the negative control probe, for downstream use
+negativeProbefData <- subset(fData(target_nano_healthy_SQC), CodeClass == "Negative")
+neg_probes <- unique(negativeProbefData$TargetName)
+target_nano_healthy_norm <- 
+  target_nano_healthy_SQC[fData(target_nano_healthy_SQC)$DetectionRate >= 0.05 |
+                  fData(target_nano_healthy_SQC)$TargetName %in% neg_probes, ]
+dim(target_nano_healthy_norm)
+
+####NORMALISATION 
+#The two common methods for normalization of DSP-NGS RNA data are 
+#i) quartile 3 (Q3) or ii) background normalization
+#Given the low negative probe counts we will use Q3. 
+#there should be a separation between these two values to ensure we have stable measure of Q3 signal.
+
+library(reshape2)  # for melt
+library(cowplot) # for plot_grid
+
+# Graph Q3 value vs negGeoMean of Negatives
+
+exprs(target_nano_healthy_norm)
+
+ann_of_interest <- "segment"
+stat_norm <- 
+  data.frame(row.names = colnames(exprs(target_nano_healthy_norm)),
+             Segment = colnames(exprs(target_nano_healthy_norm)),
+             Annotation = pData(nano_healthy)[,ann_of_interest],
+             Q3 = unlist(apply(exprs(target_nano_healthy_norm), 2,
+                               quantile, 0.75, na.rm = TRUE)),
+             NegProbe = exprs(target_nano_healthy_norm)[neg_probes, ])
+
+Stat_norm_m <- melt(stat_norm, measure.vars = c("Q3", "NegProbe"),
+                    variable.name = "Statistic", value.name = "Value")
+
+plt1 <- ggplot(Stat_norm_m,
+               aes(x = Value, fill = Statistic)) +
+  geom_histogram(bins = 40) + theme_bw() +
+  scale_x_continuous(trans = "log2") +
+  facet_wrap(~Annotation, nrow = 1) + 
+  scale_fill_brewer(palette = 3, type = "qual") +
+  labs(x = "Counts", y = "Segments, #")
+
+plt1
+
+plt2 <- ggplot(stat_norm,
+               aes(x = NegProbe, y = Q3, color = Annotation)) +
+  geom_abline(intercept = 0, slope = 1, lty = "dashed", color = "darkgray") +
+  geom_point() + guides(color = "none") + theme_bw() +
+  scale_x_continuous(trans = "log2") + 
+  scale_y_continuous(trans = "log2") +
+  theme(aspect.ratio = 1) +
+  labs(x = "Negative Probe GeoMean, Counts", y = "Q3 Value, Counts")
+
+plt2 
+
+plt3 <- ggplot(stat_norm,
+               aes(x = NegProbe, y = Q3 / NegProbe, color = Annotation)) +
+  geom_hline(yintercept = 1, lty = "dashed", color = "darkgray") +
+  geom_point() + theme_bw() +
+  scale_x_continuous(trans = "log2") + 
+  scale_y_continuous(trans = "log2") +
+  theme(aspect.ratio = 1) +
+  labs(x = "Negative Probe GeoMean, Counts", y = "Q3/NegProbe Value, Counts")
+plt3
+
+btm_row <- plot_grid(plt2, plt3, nrow = 1, labels = c("B", ""),
+                     rel_widths = c(0.43,0.57))
+plot_grid(plt1, btm_row, ncol = 1, labels = c("A", ""))
+
+####NORMALISATION####
+#I can create two dataset, one normalized Q3 and another one for background
+
+#### Q3 norm (75th percentile) for WTA  with or without custom spike-ins
+target_nano_healthy_nQ3 <- normalize(target_nano_healthy_norm , data_type = "RNA",
+                           norm_method = "quant", 
+                           desiredQuantile = .75,
+                           toElt = "q_norm")
+
+# Background normalization for WTA/CTA without custom spike-in
+target_nano_healthy_backg <- normalize(target_nano_healthy_norm , data_type = "RNA",
+                           norm_method = "neg", 
+                           fromElt = "exprs",
+                           toElt = "neg_norm")
+
+# visualize the first 15 segments with each normalization method
+boxplot(exprs(target_nano_healthy_nQ3)[,1:15],
+        col = "#9EDAE5", main = "Raw Counts",
+        log = "y", names = 1:15, xlab = "Segment",
+        ylab = "Counts, Raw")
+
+
+boxplot(assayDataElement(target_nano_healthy_nQ3[,1:15], elt = "q_norm"),
+        col = "#2CA02C", main = "Q3 Norm Counts",
+        log = "y", names = 1:15, xlab = "Segment",
+        ylab = "Counts, Q3 Normalized")
+
+boxplot(assayDataElement(target_nano_healthy_backg[,1:15], elt = "neg_norm"),
+        col = "#FF7F0E", main = "Neg Norm Counts",
+        log = "y", names = 1:15, xlab = "Segment",
+        ylab = "Counts, Neg. Normalized")
+
+#the plots are slightly different but I am not sure which one is the best to use. 
+
+
+###unsupervised analysis 
+library(umap)
+library(Rtsne)
 
