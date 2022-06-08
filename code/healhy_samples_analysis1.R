@@ -82,6 +82,16 @@ pData(nano_healthy)[, c("patient")] <- patient
 
 pData(nano_healthy)
 
+#Adding an extra column for epithelium vs stroma only. 
+#in this way we can do comparisons among the two classes only if we want to go easier 
+#we can also find clusters only upon those characteristics
+
+class <- rep(c('epithelium', 'stroma', 'stroma', 'epithelium', 'stroma', 'epithelium', 'stroma', 'epithelium', 'stroma' ), times=9)
+class
+pData(nano_healthy)[, c("class")] <- class
+
+pData(nano_healthy)
+
 #module used
 library(knitr) #with this we can display tables
 pkcs <- annotation(nano_healthy)
@@ -95,12 +105,12 @@ library(ggforce) #extension of ggplot.
 # select the annotations we want to show, use `` to surround column names with
 # spaces or special symbols
 #remember you called the column Zone with capital letter
-count_mat <- count(pData(nano_healthy), `patient`, `segment`, `Zone`)
+count_mat <- count(pData(nano_healthy), `patient`, `class`, `segment`, `Zone`)
 
 # gather the data and plot in order: class, slide name, region, segment
-test_gr <- gather_set_data(count_mat, 1:3)
+test_gr <- gather_set_data(count_mat, 1:4)
 test_gr$x <- factor(test_gr$x,
-                    levels = c("patient", "segment", "Zone"))
+                    levels = c("patient", "class", "segment", "Zone"))
 
 # plot Sankey
 #this help to visualise the segmentation scheme and gives an overview of the samples distribution
@@ -165,7 +175,7 @@ QC_Summary
 #visualize segment QC
 library(ggplot2)
 
-col_by <- "segment"
+col_by <- "class"
 
 
 QC_histogram <- function(assay_data = NULL,
@@ -335,6 +345,16 @@ ggplot(pData(target_nano_healthy_SQC),
 
 ggplot(pData(target_nano_healthy_SQC),
        aes(x = DetectionThreshold)) +
+  geom_bar(aes(fill = pData(target_nano_healthy_SQC)$class)) +
+  geom_text(stat = "count", aes(label = ..count..), vjust = -0.5) +
+  theme_bw() +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
+  labs(x = "Gene Detection Rate",
+       y = "Segments, #",
+       fill = "class")
+
+ggplot(pData(target_nano_healthy_SQC),
+       aes(x = DetectionThreshold)) +
   geom_bar(aes(fill = pData(target_nano_healthy_SQC)$patient)) +
   geom_text(stat = "count", aes(label = ..count..), vjust = -0.5) +
   theme_bw() +
@@ -358,6 +378,9 @@ kable(table(pData(target_nano_healthy_SQC)$DetectionThreshold,
 
 kable(table(pData(target_nano_healthy_SQC)$DetectionThreshold,
             pData(target_nano_healthy_SQC)$patient))
+
+kable(table(pData(target_nano_healthy_SQC)$DetectionThreshold,
+            pData(target_nano_healthy_SQC)$class))
 
 #I cannot filter the segments with 1-5% detection rate because I would delete all the data
 
@@ -437,7 +460,7 @@ library(cowplot) # for plot_grid
 
 exprs(target_nano_healthy_norm)
 
-ann_of_interest <- "segment"
+ann_of_interest <- "class"
 stat_norm <- 
   data.frame(row.names = colnames(exprs(target_nano_healthy_norm)),
              Segment = colnames(exprs(target_nano_healthy_norm)),
@@ -520,6 +543,197 @@ boxplot(assayDataElement(target_nano_healthy_backg[,1:15], elt = "neg_norm"),
 
 
 ###unsupervised analysis 
+install.packages('umap')
 library(umap)
 library(Rtsne)
+
+# update defaults for umap to contain a stable random_state (seed)
+#what does happen if I add or remove seeds?
+custom_umap <- umap::umap.defaults
+custom_umap$random_state <- 42
+
+umap_out <-
+  umap(t(log2(assayDataElement(target_nano_healthy_nQ3 , elt = "q_norm"))),  
+       config = custom_umap)
+pData(target_nano_healthy_nQ3)[, c("UMAP1", "UMAP2")] <- umap_out$layout[, c(1,2)]
+
+Q3_umap <- ggplot(pData(target_nano_healthy_nQ3),
+       aes(x = UMAP1, y = UMAP2, color = Zone, shape = segment)) +
+  geom_point(size = 3) +
+  theme_bw()
+Q3_umap
+
+#umap q3 normalisation zone and class
+
+ggplot(pData(target_nano_healthy_nQ3),
+       aes(x = UMAP1, y = UMAP2, color = class, shape = Zone)) +
+  geom_point(size = 3) +
+  theme_bw()
+
+#change seeds to 50 to see what changes
+
+custom_umap1 <- umap::umap.defaults
+custom_umap1$random_state <- 50
+
+umap_out1 <-
+  umap(t(log2(assayDataElement(target_nano_healthy_nQ3 , elt = "q_norm"))),  
+       config = custom_umap1)
+pData(target_nano_healthy_nQ3)[, c("UMAP1", "UMAP2")] <- umap_out1$layout[, c(1,2)]
+ggplot(pData(target_nano_healthy_nQ3),
+       aes(x = UMAP1, y = UMAP2, color = Zone, shape = segment)) +
+  geom_point(size = 3) +
+  theme_bw()  #graph changes completely. 
+#need to understand which are the best conditions. 
+
+#try with 3 components and 42 seeds
+
+custom_umap2 <- umap::umap.defaults
+custom_umap2$random_state <- 42
+custom_umap2$n_components <- 3
+
+umap_out2 <-
+  umap(t(log2(assayDataElement(target_nano_healthy_nQ3 , elt = "q_norm"))),  
+       config = custom_umap2)
+pData(target_nano_healthy_nQ3)[, c("UMAP1", "UMAP2", "UMAP3")] <- umap_out2$layout[, c(1,2,3)]
+ggplot(pData(target_nano_healthy_nQ3),
+       aes(x = UMAP1, y = UMAP2, z = UMAP3, color = Zone, shape = segment)) +
+  geom_point(size = 3) +
+  theme_bw()
+
+#Do not know how to add the z axes to the plot #however with the same number of seeds I got a different type of graph, why?
+
+#now with the background normalisation 
+
+umap_out_BG <-
+  umap(t(log2(assayDataElement(target_nano_healthy_backg , elt = "neg_norm"))),  
+       config = custom_umap)
+pData(target_nano_healthy_backg)[, c("UMAP1", "UMAP2")] <- umap_out$layout[, c(1,2)]
+
+Bkg_umap <- ggplot(pData(target_nano_healthy_backg),
+       aes(x = UMAP1, y = UMAP2, color = Zone, shape = segment)) +
+  geom_point(size = 3) +
+  theme_bw()
+
+
+#plot the umap from the two normalisations one next to the other to see the difference
+
+library(ggpubr)
+
+ggarrange(Bkg_umap + rremove("legend"), Q3_umap, labels = c("background norm", "Q3 norm"), ncol = 2, nrow = 1)
+#to improve the position of the lables, and the distribution of the graphs. 
+
+#it seems that the two normalisation methods do not give particular differences in the segregation of the samples. 
+
+# run tSNE
+#seed 42, on Q3 normalised data and background. 
+#plotting segments and zones
+
+set.seed(42) # set the seed for tSNE as well
+
+#Q3 normalisation 
+tsne_out <-
+  Rtsne(t(log2(assayDataElement(target_nano_healthy_nQ3 , elt = "q_norm"))),
+        perplexity = ncol(target_nano_healthy_nQ3)*.15)
+pData(target_nano_healthy_nQ3)[, c("tSNE1", "tSNE2")] <- tsne_out$Y[, c(1,2)]
+
+Q3_tsne <- ggplot(pData(target_nano_healthy_nQ3),
+       aes(x = tSNE1, y = tSNE2, color = segment, shape = zone)) +
+  geom_point(size = 3) +
+  theme_bw()
+
+
+#same for the normalised data upon background noise
+
+tsne_out1 <-
+  Rtsne(t(log2(assayDataElement(target_nano_healthy_backg , elt = "neg_norm"))),
+        perplexity = ncol(target_nano_healthy_backg)*.15)
+pData(target_nano_healthy_backg)[, c("tSNE1", "tSNE2")] <- tsne_out1$Y[, c(1,2)]
+
+Bkg_tsne <- ggplot(pData(target_nano_healthy_backg),
+       aes(x = tSNE1, y = tSNE2, color = segment, shape = zone)) +
+  geom_point(size = 3) +
+  theme_bw()
+
+#putting all the graph together. 
+
+ggarrange(Bkg_umap + rremove("legend"), Q3_umap, Bkg_tsne + rremove("legend") , Q3_tsne,
+          labels = c("background norm", "Q3 norm"), ncol = 2, nrow = 2)
+
+#to be improved: removing the legend and putting it as an extra so that all the graphs will appear equal. 
+#the two graphs have a differnet color annotation, so I cannot use the same legend for all the graphs. 
+
+####CLUSTERING HIGH CV GENES####
+
+#from here we might not need it since we might use the counts for our network analysis
+
+library(pheatmap)  # for heatmap
+# create a log2 transform of the data for analysis
+#I will use the Q3 data for now
+
+assayDataElement(object = target_nano_healthy_nQ3, elt = "log_q") <-
+assayDataApply(target_nano_healthy_nQ3, 2, FUN = log, base = 2, elt = "q_norm")
+
+# create CV function
+calc_CV <- function(x) {sd(x) / mean(x)}
+CV_Q3norm_healthy <- assayDataApply(target_nano_healthy_nQ3,
+                         elt = "log_q", MARGIN = 1, calc_CV)
+# show the highest CD genes and their CV values
+
+sort(CV_Q3norm_healthy, decreasing = TRUE)[1:50]
+
+
+# Identify genes in the top 3rd of the CV values
+
+top3rd_Q3 <- names(CV_Q3norm_healthy)[CV_Q3norm_healthy > quantile(CV_Q3norm_healthy, 0.8)]
+pheatmap(assayDataElement(target_nano_healthy_nQ3[top3rd_Q3, ], elt = "log_q"),
+         scale = "row", 
+         show_rownames = FALSE, show_colnames = FALSE,
+         border_color = NA,
+         clustering_method = "ward.D2", #I tryied to change the method but it seems that the clusters do not make much sense. 
+         clustering_distance_rows = "correlation",
+         clustering_distance_cols = "correlation",
+         breaks = seq(-3, 3, 0.05),
+         color = colorRampPalette(c("purple3", "black", "yellow2"))(120),
+         annotation_col = 
+           pData(target_nano_healthy_nQ3)[, c("Zone", "segment", "patient", "class")]) #how can I change the colours of the annotation?
+
+
+###DIFFERENTIAL EXPRESSION
+
+#within slide analysis
+#taking in consideration zones: study of differences between morphological structures
+###comparing structures that co-exist within the a given tissue we will use the LMM model with a random slope####
+#Morphological structure (zone) is out test variable. 
+#control for tissue sub sampling using slide name or patient
+#Benjamin-Hochberg multiple test correction.
+
+# convert test variables to factors
+pData(target_nano_healthy_nQ3)$testClass <- 
+  factor(pData(target_nano_healthy_nQ3)$class, c("epithelium", "stroma"))
+pData(target_nano_healthy_nQ3)[["patient"]] <- 
+  factor(pData(target_nano_healthy_nQ3)[["patient"]])
+pData(target_nano_healthy_nQ3)[["class"]] <- 
+  factor(pData(target_nano_healthy_nQ3)[["class"]])
+pData(target_nano_healthy_nQ3)[["segment"]] <- 
+  factor(pData(target_nano_healthy_nQ3)[["segment"]])
+pData(target_nano_healthy_nQ3)[["Zone"]] <- 
+  factor(pData(target_nano_healthy_nQ3)[["Zone"]])
+assayDataElement(object = target_nano_healthy_nQ3, elt = "log_q") <-
+  assayDataApply(target_nano_healthy_nQ3, 2, FUN = log, base = 2, elt = "q_norm")
+
+# run LMM:
+# formula follows conventions defined by the lme4 package
+
+#I am not sure I wrote the formula correctly. I need to understand the terms I need to insert in the formula. 
+results_1 <- c()
+for(segment in c("Foveola", "Isthmus","Neck", "Base", "Muscularis")) {
+  ind <- pData(target_nano_healthy_nQ3)$class == segment 
+  mixedOutmc <-
+    mixedModelDE(target_nano_healthy_nQ3[, ind],
+                 elt = "log_q",
+                 modelFormula = ~ testClass + (1 + testClass | patient),
+                 groupVar = "testClass",
+                 nCores = parallel::detectCores(),
+                 multiCore = FALSE)}
+
 
