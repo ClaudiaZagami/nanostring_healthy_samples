@@ -737,3 +737,16 @@ for(segment in c("Foveola", "Isthmus","Neck", "Base", "Muscularis")) {
                  multiCore = FALSE)}
 
 
+#between slides?
+
+results2 <- c()
+for(segment in c("Foveola", "Isthmus","Neck", "Base", "Muscularis")) {
+  ind <- pData(target_nano_healthy_nQ3)$class == class
+  mixedOutmc <-
+    mixedModelDE(target_nano_healthy_nQ3[, ind],
+                 elt = "log_q",
+                 modelFormula = ~ testClass + (1 | patient),
+                 groupVar = "testClass",
+                 nCores = parallel::detectCores(),
+                 multiCore = FALSE)}
+  
