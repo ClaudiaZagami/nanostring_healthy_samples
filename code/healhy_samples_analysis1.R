@@ -943,7 +943,7 @@ ggplot(all_results_from_epi_stroma_significant,
   coord_flip()+
   facet_wrap(~Zone)
 
-# Violin plot for example gene (GZMB)
+# Violin plot for example gene (GZMB), using all data
 
 ggplot(pData(target_nano_healthy_nQ3),
        aes(x = class, fill = class,
@@ -956,7 +956,90 @@ ggplot(pData(target_nano_healthy_nQ3),
   facet_wrap(~Zone) +
   theme_bw()
 
+
+
+# =================================================================
+
+pData(target_nano_healthy_nQ3)$testClass <-
+  factor(pData(target_nano_healthy_nQ3)$Zone, c("Foveola", "Isthmus", "Neck", "Base", "Muscularis"))
+
+pData(target_nano_healthy_nQ3)[["patient"]] <-
+  factor(pData(target_nano_healthy_nQ3)[["patient"]])
+
+pData(target_nano_healthy_nQ3)[["class"]] <-
+  factor(pData(target_nano_healthy_nQ3)[["class"]])
+
+pData(target_nano_healthy_nQ3)[["segment"]] <-
+  factor(pData(target_nano_healthy_nQ3)[["segment"]])
+
+pData(target_nano_healthy_nQ3)[["Zone"]] <-
+  factor(pData(target_nano_healthy_nQ3)[["Zone"]])
+
+assayDataElement(object = target_nano_healthy_nQ3, elt = "log_q") <-
+  assayDataApply(target_nano_healthy_nQ3, 2, FUN = log, base = 2, elt = "q_norm")
+
+# =====
+# Epithelium
+
+ind <- pData(target_nano_healthy_nQ3)$class == "epithelium"
+mixedOutmc <-
+  mixedModelDE(target_nano_healthy_nQ3[, ind],
+               elt = "log_q",
+               modelFormula = ~ testClass + (1 + testClass | patient),
+               groupVar = "testClass",
+               nCores = parallel::detectCores(),
+               multiCore = F)
+
+# formatting the result to be more readable
+r_test <- do.call(rbind, mixedOutmc["lsmeans", ])
+tests <- rownames(r_test)
+r_test <- as.data.frame(r_test)
+r_test$Contrast <- tests
+r_test$Gene <- 
+  unlist(lapply(colnames(mixedOutmc),
+                rep, nrow(mixedOutmc["lsmeans", ][[1]])))
+r_test$Class <- "epithelium" # note that I renamed this variable
+r_test$FDR <- p.adjust(r_test$`Pr(>|t|)`, method = "fdr")
+r_test <- r_test[, c("Gene", "Class", "Contrast", "Estimate", 
+                     "Pr(>|t|)", "FDR")]
+
+epithelium_significant_comparisons <- r_test |> dplyr::filter(abs(Estimate) >= 1 & FDR <= 0.05)
+
+# =====
+# Stroma
+
+ind <- pData(target_nano_healthy_nQ3)$class == "stroma"
+mixedOutmc <-
+  mixedModelDE(target_nano_healthy_nQ3[, ind],
+               elt = "log_q",
+               modelFormula = ~ testClass + (1 + testClass | patient),
+               groupVar = "testClass",
+               nCores = parallel::detectCores(),
+               multiCore = F)
+
+# formatting the result to be more readable
+r_test <- do.call(rbind, mixedOutmc["lsmeans", ])
+tests <- rownames(r_test)
+r_test <- as.data.frame(r_test)
+r_test$Contrast <- tests
+r_test$Gene <- 
+  unlist(lapply(colnames(mixedOutmc),
+                rep, nrow(mixedOutmc["lsmeans", ][[1]])))
+r_test$Class <- "epithelium" # note that I renamed this variable
+r_test$FDR <- p.adjust(r_test$`Pr(>|t|)`, method = "fdr")
+r_test <- r_test[, c("Gene", "Class", "Contrast", "Estimate", 
+                     "Pr(>|t|)", "FDR")]
+
+stroma_significant_comparisons <- r_test |> dplyr::filter(abs(Estimate) >= 1 & FDR <= 0.05)
+
+
 # between slides?
 # Marton: To do the comparison between healthy & diseased we need to load the cancer data 
 # Marton: If I understand correctly so far we have only loaded the healthy data
+
+# Using biobroom
+# Installing them first:
+# if (!requireNamespace("BiocManager", quietly=TRUE))
+# install.packages("BiocManager")
+# BiocManager::install("biobroom")
 
