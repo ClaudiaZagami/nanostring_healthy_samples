@@ -831,7 +831,8 @@ pheatmap(assayDataElement(target_nano_healthy_nQ3[top3rd_Q3, ], elt = "log_q"),
   color = colorRampPalette(c("purple3", "black", "yellow2"))(120),
   annotation_col = 
   pData(target_nano_healthy_nQ3)[, c("Zone", "segment", "patient", "class")]
-) #how can I change the colours of the annotation?
+) 
+#how can I change the colours of the annotation?
 # Marton: I changed it to complete linkage.
 # Complete linkage clustering means that the distance from one cluster to another 
 # is calculated based on the furthest members of the cluster. 
@@ -941,11 +942,25 @@ for (i in c("Foveola", "Isthmus", "Neck", "Base")) {
 # Or put them in a single large dataframe, like so: 
   
 all_results_from_epi_stroma <- bind_rows(results_1)
+all_results_from_epi_stroma_1 <- bind_rows(results_1)
+
+write_excel_csv(results_1[["Foveola"]], file = "results_foveola_EvsS.csv", ",")
+write_excel_csv(results_1[["Isthmus"]], file = "results_isthmus_EvsS.csv", ",")
+write_excel_csv(results_1[["Neck"]], file = "results_neck_EvsS.csv", ",")
+write_excel_csv(results_1[["Base"]], file = "results_base_EvsS.csv", ",")
 
 # Keep significant only
 # REMEMBER: play with threshold
 all_results_from_epi_stroma_significant <- all_results_from_epi_stroma |> dplyr::filter(abs(Estimate) >= 1 & FDR <= 0.5)
+# Too losen, it returns 140 genes
 
+all_results_from_epi_stroma_significant1 <- all_results_from_epi_stroma |> dplyr::filter(abs(Estimate) >= 0.25 & FDR <= 0.001)
+# Parameters suggested by Marton but return only 1 gene
+
+all_results_from_epi_stroma_significant2 <- all_results_from_epi_stroma |> dplyr::filter(abs(Estimate) >= 1 & FDR <= 0.05)
+#23 genes
+
+all_results_from_epi_stroma_significant3 <- all_results_from_epi_stroma |> dplyr::filter(abs(Estimate) >= 0.5 & FDR <= 0.05)
 
 # Results are all upregulated - the downregulated genes are not significant
 # Plot below show significantly upregulated genes
@@ -955,6 +970,74 @@ ggplot(all_results_from_epi_stroma_significant,
   geom_bar(stat='identity')+
   coord_flip()+
   facet_wrap(~Zone)
+
+# Categorize Results based on P-value & FDR for plotting
+
+all_results_from_epi_stroma_1$Color <- "NS or FC < 0.5"
+all_results_from_epi_stroma_1$Color[all_results_from_epi_stroma_1$`Pr(>|t|)` < 0.05] <- "P < 0.05"
+all_results_from_epi_stroma_1$Color[all_results_from_epi_stroma_1$FDR < 0.05] <- "FDR < 0.05"
+all_results_from_epi_stroma_1$Color[all_results_from_epi_stroma_1$FDR < 0.001] <- "FDR < 0.001"
+all_results_from_epi_stroma_1$Color[abs(all_results_from_epi_stroma_1$Estimate) < 0.5] <- "NS or FC < 0.5"
+all_results_from_epi_stroma_1$Color <- factor(all_results_from_epi_stroma_1$Color,
+                        levels = c("NS or FC < 0.5", "P < 0.05",
+                                   "FDR < 0.05", "FDR < 0.001"))
+
+all_results_from_epi_stroma_filt1 <- all_results_from_epi_stroma |> dplyr::filter(abs(Color) == P < 0.05 & FDR < 0.05 & FDR < 0.001 )
+
+#volcano plot
+# The significantly differentially expressed genes are the ones found in the upper-left and upper-right corners.
+# Add a column to the data frame to specify if they are UP- or DOWN- regulated (log2FoldChange respectively positive or negative)
+
+# add a column of NAs
+all_results_from_epi_stroma$diffexpressed <- "NO"
+# if log2Foldchange > 0.6 and pvalue < 0.05, set as "UP" 
+all_results_from_epi_stroma$diffexpressed[all_results_from_epi_stroma$Estimate > 0.6 & all_results_from_epi_stroma$`Pr(>|t|)` < 0.05] <- "UP"
+# if log2Foldchange < -0.6 and pvalue < 0.05, set as "DOWN"
+all_results_from_epi_stroma$diffexpressed[all_results_from_epi_stroma$Estimate < -0.6 & all_results_from_epi_stroma$`Pr(>|t|)` < 0.05] <- "DOWN"
+
+# Re-plot but this time color the points with "diffexpressed"
+p <- ggplot(data=all_results_from_epi_stroma, aes(x=Estimate, y=-log10(`Pr(>|t|)`), col=diffexpressed)) + geom_point() + theme_minimal()
+p
+
+# Add lines 
+p2 <- p + geom_vline(xintercept=c(-0.6, 0.6), col="red") +
+  geom_hline(yintercept=-log10(0.05), col="red")
+p2
+
+## Change point color 
+
+# by default, it is assigned to the categories in an alphabetical order):
+p3 <- p2 + scale_color_manual(values=c("blue", "black", "red"))
+p3
+
+# create a vector to define the colours with a rule
+mycolors <- c("blue", "red", "black")
+names(mycolors) <- c("DOWN", "UP", "NO")
+p3 <- p2 + scale_colour_manual(values = mycolors)
+p3
+
+# Now write down the name of genes beside the points.
+# Create a new column "delabel" to my detaframe, that will contain the name of genes differentially expressed (NA in case they are not)
+all_results_from_epi_stroma$delabel <- NA
+all_results_from_epi_stroma$delabel[all_results_from_epi_stroma$diffexpressed != "NO"] <- all_results_from_epi_stroma$Gene[all_results_from_epi_stroma$diffexpressed != "NO"]
+
+ggplot(data=all_results_from_epi_stroma, aes(x=Estimate, y=-log10(`Pr(>|t|)`), col=diffexpressed, label=delabel)) + 
+  geom_point() + 
+  theme_minimal() +
+  geom_text()
+
+# organize the labels nicely using the "ggrepel" package and the geom_text_repel() function
+# load library
+library(ggrepel)
+# plot adding up all layers we have seen so far
+ggplot(data=all_results_from_epi_stroma, aes(x=Estimate, y=-log10(`Pr(>|t|)`), col=diffexpressed, label=delabel)) +
+  geom_point() + 
+  theme_minimal() +
+  geom_text_repel() +
+  scale_color_manual(values=c("blue", "black", "red")) +
+  geom_vline(xintercept=c(-0.6, 0.6), col="red") +
+  geom_hline(yintercept=-log10(0.05), col="red")
+
 
 #try to create an excel file from results1
 write_excel_csv(all_results_from_epi_stroma, file = "results_1.csv", ",")
@@ -1056,7 +1139,7 @@ r_test$Contrast <- tests
 r_test$Gene <- 
   unlist(lapply(colnames(mixedOutmc),
                 rep, nrow(mixedOutmc["lsmeans", ][[1]])))
-r_test$Class <- "epithelium" # note that I renamed this variable
+r_test$Class <- "stroma" # note that I renamed this variable
 r_test$FDR <- p.adjust(r_test$`Pr(>|t|)`, method = "fdr")
 r_test <- r_test[, c("Gene", "Class", "Contrast", "Estimate", 
                      "Pr(>|t|)", "FDR")]
@@ -1066,7 +1149,7 @@ stroma_comparisons <- r_test
 #write table
 write_excel_csv(stroma_comparisons, file = "stroma_comparisons.csv", ",")
 
-stroma_significant_comparisons <- r_test |> dplyr::filter(abs(Estimate) >= 1 & FDR <= 0.5)
+stroma_significant_comparisons <- r_test |> dplyr::filter(abs(Estimate) >= 1 & FDR <= 0.05)
 
 
 # between slides?
