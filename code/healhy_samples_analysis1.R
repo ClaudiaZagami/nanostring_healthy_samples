@@ -927,12 +927,12 @@ for (i in c("Foveola", "Isthmus", "Neck", "Base")) {
 
 # Now we can browse results_1 like so: results_1[["Foveola"]] or results_1[["Base"]] etc.
 # Or put them in a single large dataframe, like so:
-
+library(tidyverse)
 all_results_from_epi_stroma <- bind_rows(results_1)
 
 # Keep significant only
 
-all_results_from_epi_stroma_significant <- all_results_from_epi_stroma |> dplyr::filter(abs(Estimate) >= 1 & FDR <= 0.05)
+all_results_from_epi_stroma_significant <- all_results_from_epi_stroma |> dplyr::filter(abs(Estimate) >= 0.25 & FDR <= 0.1)
 
 # Results are all upregulated - the downregulated genes are not significant
 # Plot below show significantly upregulated genes
@@ -1007,10 +1007,9 @@ epithelium_significant_comparisons <- r_test |> dplyr::filter(abs(Estimate) >= 1
 
 # =====
 # Stroma
-
-ind <- pData(target_nano_healthy_nQ3)$class == "stroma"
-mixedOutmc <-
-  mixedModelDE(target_nano_healthy_nQ3[, ind],
+ind_stroma <- pData(target_nano_healthy_nQ3)$class == "stroma"
+mixedOutmc_stroma <-
+  mixedModelDE(target_nano_healthy_nQ3[, ind_stroma],
                elt = "log_q",
                modelFormula = ~ testClass + (1 + testClass | patient),
                groupVar = "testClass",
@@ -1018,19 +1017,19 @@ mixedOutmc <-
                multiCore = F)
 
 # formatting the result to be more readable
-r_test <- do.call(rbind, mixedOutmc["lsmeans", ])
-tests <- rownames(r_test)
-r_test <- as.data.frame(r_test)
-r_test$Contrast <- tests
-r_test$Gene <- 
-  unlist(lapply(colnames(mixedOutmc),
-                rep, nrow(mixedOutmc["lsmeans", ][[1]])))
-r_test$Class <- "epithelium" # note that I renamed this variable
-r_test$FDR <- p.adjust(r_test$`Pr(>|t|)`, method = "fdr")
-r_test <- r_test[, c("Gene", "Class", "Contrast", "Estimate", 
+r_test_stroma <- do.call(rbind, mixedOutmc_stroma["lsmeans", ])
+tests_stroma <- rownames(r_test_stroma)
+r_test_stroma <- as.data.frame(r_test_stroma)
+r_test_stroma$Contrast <- tests_stroma
+r_test_stroma$Gene <- 
+  unlist(lapply(colnames(mixedOutmc_stroma),
+                rep, nrow(mixedOutmc_stroma["lsmeans", ][[1]])))
+r_test_stroma$Class <- "stroma" # note that I renamed this variable
+r_test_stroma$FDR <- p.adjust(r_test_stroma$`Pr(>|t|)`, method = "fdr")
+r_test_stroma <- r_test_stroma[, c("Gene", "Class", "Contrast", "Estimate", 
                      "Pr(>|t|)", "FDR")]
 
-stroma_significant_comparisons <- r_test |> dplyr::filter(abs(Estimate) >= 1 & FDR <= 0.05)
+stroma_significant_comparisons <- r_test_stroma |> dplyr::filter(abs(Estimate) >= 1 & FDR <= 0.05)
 
 
 # between slides?
@@ -1042,4 +1041,8 @@ stroma_significant_comparisons <- r_test |> dplyr::filter(abs(Estimate) >= 1 & F
 # if (!requireNamespace("BiocManager", quietly=TRUE))
 # install.packages("BiocManager")
 # BiocManager::install("biobroom")
+
+library(biobroom)
+df<-tidy(target_nano_healthy_nQ3, addPheno=T)
+# only exprs is stored - in "value" - add qnorm values from assayData (export and join)
 
