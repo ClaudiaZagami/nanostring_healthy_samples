@@ -1039,7 +1039,9 @@ ggplot(data=all_results_from_epi_stroma, aes(x=Estimate, y=-log10(`Pr(>|t|)`), c
   geom_hline(yintercept=-log10(0.05), col="red")
 
 
-#try to create an excel file from results1
+### take from here. separate datasets of differential analysis for each zone and create a plot for each zone
+
+# try to create an excel file from results1
 write_excel_csv(all_results_from_epi_stroma, file = "results_1.csv", ",")
 
 # Violin plot for example gene (WNT8A), using all data
