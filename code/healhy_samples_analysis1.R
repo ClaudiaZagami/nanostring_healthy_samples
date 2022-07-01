@@ -1024,7 +1024,7 @@ r_test_stroma$Contrast <- tests_stroma
 r_test_stroma$Gene <- 
   unlist(lapply(colnames(mixedOutmc_stroma),
                 rep, nrow(mixedOutmc_stroma["lsmeans", ][[1]])))
-r_test_stroma$Class <- "stroma" # note that I renamed this variable
+r_test_stroma$Class <- "stroma" # note that I renamed this variable for the stroma example
 r_test_stroma$FDR <- p.adjust(r_test_stroma$`Pr(>|t|)`, method = "fdr")
 r_test_stroma <- r_test_stroma[, c("Gene", "Class", "Contrast", "Estimate", 
                      "Pr(>|t|)", "FDR")]
