@@ -957,6 +957,8 @@ all_results_from_epi_stroma_significant <- all_results_from_epi_stroma |> dplyr:
 all_results_from_epi_stroma_significant1 <- all_results_from_epi_stroma |> dplyr::filter(abs(Estimate) >= 0.25 & FDR <= 0.001)
 # Parameters suggested by Marton but return only 1 gene
 
+all_results_from_epi_stroma_significant4 <- all_results_from_epi_stroma |> dplyr::filter(abs(Estimate) >= 0.6 & `Pr(>|t|)` < 0.05)
+
 all_results_from_epi_stroma_significant2 <- all_results_from_epi_stroma |> dplyr::filter(abs(Estimate) >= 1 & FDR <= 0.05)
 #23 genes
 
@@ -971,6 +973,57 @@ ggplot(all_results_from_epi_stroma_significant,
   coord_flip()+
   facet_wrap(~Zone)
 
+# convert test variables to factors
+pData(target_nano_healthy_nQ3)$testClass1 <- 
+  factor(pData(target_nano_healthy_nQ3)$class, c("stroma", "epithelium"))
+
+pData(target_nano_healthy_nQ3)[["patient"]] <- 
+  factor(pData(target_nano_healthy_nQ3)[["patient"]])
+
+pData(target_nano_healthy_nQ3)[["class"]] <- 
+  factor(pData(target_nano_healthy_nQ3)[["class"]])
+
+pData(target_nano_healthy_nQ3)[["segment"]] <- 
+  factor(pData(target_nano_healthy_nQ3)[["segment"]])
+
+pData(target_nano_healthy_nQ3)[["Zone"]] <- 
+  factor(pData(target_nano_healthy_nQ3)[["Zone"]])
+
+assayDataElement(object = target_nano_healthy_nQ3, elt = "log_q") <-
+  assayDataApply(target_nano_healthy_nQ3, 2, FUN = log, base = 2, elt = "q_norm")
+
+results_2 <- list()
+
+for (i in c("Foveola", "Isthmus", "Neck", "Base")) {
+  
+  ind <- pData(target_nano_healthy_nQ3)$Zone == i
+  
+  mixedOutmc <-
+    mixedModelDE(target_nano_healthy_nQ3[, ind],
+                 elt = "log_q",
+                 modelFormula = ~ testClass1 + (1 + testClass1 | patient),
+                 groupVar = "testClass1",
+                 nCores = parallel::detectCores(),
+                 multiCore = F
+    )
+  
+  r_test <- do.call(rbind, mixedOutmc["lsmeans", ])
+  tests <- rownames(r_test)
+  r_test <- as.data.frame(r_test)
+  r_test$Contrast <- tests
+  
+  r_test$Gene <- 
+    unlist(lapply(colnames(mixedOutmc),
+                  rep, nrow(mixedOutmc["lsmeans", ][[1]])))
+  r_test$Zone <- paste0(i) # note that I renamed this variable
+  r_test$FDR <- p.adjust(r_test$`Pr(>|t|)`, method = "fdr")
+  r_test <- r_test[, c("Gene", "Zone", "Contrast", "Estimate", 
+                       "Pr(>|t|)", "FDR")]
+  
+  results_2[[paste0(i)]] <- r_test
+}
+
+
 # Categorize Results based on P-value & FDR for plotting
 
 all_results_from_epi_stroma_1$Color <- "NS or FC < 0.5"
@@ -984,16 +1037,16 @@ all_results_from_epi_stroma_1$Color <- factor(all_results_from_epi_stroma_1$Colo
 
 all_results_from_epi_stroma_filt1 <- all_results_from_epi_stroma |> dplyr::filter(abs(Color) == P < 0.05 & FDR < 0.05 & FDR < 0.001 )
 
-#volcano plot
+# volcano plot
 # The significantly differentially expressed genes are the ones found in the upper-left and upper-right corners.
 # Add a column to the data frame to specify if they are UP- or DOWN- regulated (log2FoldChange respectively positive or negative)
 
 # add a column of NAs
 all_results_from_epi_stroma$diffexpressed <- "NO"
-# if log2Foldchange > 0.6 and pvalue < 0.05, set as "UP" 
-all_results_from_epi_stroma$diffexpressed[all_results_from_epi_stroma$Estimate > 0.6 & all_results_from_epi_stroma$`Pr(>|t|)` < 0.05] <- "UP"
-# if log2Foldchange < -0.6 and pvalue < 0.05, set as "DOWN"
-all_results_from_epi_stroma$diffexpressed[all_results_from_epi_stroma$Estimate < -0.6 & all_results_from_epi_stroma$`Pr(>|t|)` < 0.05] <- "DOWN"
+# if log2Foldchange > 0.6 and pvalue < 0.05, set as "UP" in our case epithelium
+all_results_from_epi_stroma$diffexpressed[all_results_from_epi_stroma$Estimate > 0.6 & all_results_from_epi_stroma$`Pr(>|t|)` < 0.05] <- "Epithelium"
+# if log2Foldchange < -0.6 and pvalue < 0.05, set as "DOWN" in our case stroma
+all_results_from_epi_stroma$diffexpressed[all_results_from_epi_stroma$Estimate < -0.6 & all_results_from_epi_stroma$`Pr(>|t|)` < 0.05] <- "Stroma"
 
 # Re-plot but this time color the points with "diffexpressed"
 p <- ggplot(data=all_results_from_epi_stroma, aes(x=Estimate, y=-log10(`Pr(>|t|)`), col=diffexpressed)) + geom_point() + theme_minimal()
@@ -1007,12 +1060,12 @@ p2
 ## Change point color 
 
 # by default, it is assigned to the categories in an alphabetical order):
-p3 <- p2 + scale_color_manual(values=c("blue", "black", "red"))
+p3 <- p2 + scale_color_manual(values=c("red", "black", "blue"))
 p3
 
 # create a vector to define the colours with a rule
 mycolors <- c("blue", "red", "black")
-names(mycolors) <- c("DOWN", "UP", "NO")
+names(mycolors) <- c("Stroma", "Epithelium", "NO")
 p3 <- p2 + scale_colour_manual(values = mycolors)
 p3
 
@@ -1034,15 +1087,41 @@ ggplot(data=all_results_from_epi_stroma, aes(x=Estimate, y=-log10(`Pr(>|t|)`), c
   geom_point() + 
   theme_minimal() +
   geom_text_repel() +
+  labs(x = "log2 fold change", y = "Significance, -log10(P-value)") +
+  scale_color_manual(values=c("red", "black", "blue")) +
+  geom_vline(xintercept=c(-0.6, 0.6), col="red") +
+  geom_hline(yintercept=-log10(0.05), col="red")
+
+# ============filtering and pathway analysis for FOLEVOLA ====================
+#filter for foveola
+
+epi_stroma_foveola <- all_results_from_epi_stroma |> dplyr::filter(Zone == "Foveola")
+epi_stroma_foveola
+
+# creating df of only differntially expressed genes in foveola
+epi_stroma_foveola_sig <- epi_stroma_foveola |> dplyr::filter(delabel != "NA")
+
+#vulcano plot foveola only 
+
+ggplot(data=epi_stroma_foveola, aes(x=Estimate, y=-log10(`Pr(>|t|)`), col=diffexpressed, label=delabel)) +
+  geom_point() + 
+  theme_minimal() +
+  geom_text_repel() +
+  labs(x = "log2 fold change", y = "Significance, -log10(P-value)") +
   scale_color_manual(values=c("blue", "black", "red")) +
   geom_vline(xintercept=c(-0.6, 0.6), col="red") +
   geom_hline(yintercept=-log10(0.05), col="red")
 
+# Filtering significant in stroma
+# cut off?
+epi_stroma_foveola_sig1 <- epi_stroma_foveola |> dplyr::filter(abs(Estimate) >= 1 & FDR <= 0.05)
 
-### take from here. separate datasets of differential analysis for each zone and create a plot for each zone
+#create excel file 
+write_excel_csv(epi_stroma_foveola_sig, file = "epi_stroma_foveola_sig.csv", ",")
 
-# try to create an excel file from results1
-write_excel_csv(all_results_from_epi_stroma, file = "results_1.csv", ",")
+
+# create an excel file from results1
+#write_excel_csv(all_results_from_epi_stroma, file = "results_1.csv", ",")
 
 # Violin plot for example gene (WNT8A), using all data
 
@@ -1054,7 +1133,7 @@ ggplot(pData(target_nano_healthy_nQ3),
   geom_jitter(width = .2) +
   labs(y = "WNT8A Expression") +
   scale_y_continuous(trans = "log2") +
-  facet_wrap(~Zone) +
+  facet_wrap(~Zone) + #check how to dispose it in order as the gland
   theme_bw()
 
 #hes7
@@ -1069,7 +1148,398 @@ ggplot(pData(target_nano_healthy_nQ3),
   facet_wrap(~Zone) +
   theme_bw()
 
+# pathway analysis with ClusterProfiler for FOVEOLA ONLY
+
+#BiocManager::install("clusterProfiler")
+#BiocManager::install("pathview")
+#BiocManager::install("enrichplot")
+library(clusterProfiler)
+library(enrichplot)
+
+colnames(epi_stroma_foveola_sig) <- c("Gene", "Zone", "Contrast", "log2FoldChange", "pvalue", "FDR", "diffexpressed", "delabel")
+epi_stroma_foveola_sig
+
+# SET THE DESIRED ORGANISM 
+organism = "org.Hs.eg.db"
+BiocManager::install(organism, character.only = TRUE)
+library(organism, character.only = TRUE)
+
+## Example to understand the code
+# Taken from https://learn.gencore.bio.nyu.edu/rna-seq-analysis/gene-set-enrichment-analysis/
+
+# reading in data from deseq2
+#df = read.csv("drosphila_example_de.csv", header=TRUE)
+# we want the log2 fold change 
+#original_gene_list <- df$log2FoldChange
+# name the vector
+#names(original_gene_list) <- df$X
+#original_gene_list
+# omit any NA values 
+#gene_list<-na.omit(original_gene_list)
+#gene_list
+# sort the list in decreasing order (required for clusterProfiler)
+#gene_list = sort(gene_list, decreasing = TRUE)
+#gene_list
+
+# do the same with my data 
+# log2 fold change
+epi_stroma_fov_genelist <- epi_stroma_foveola_sig$log2FoldChange
+
+# name the vector
+names(epi_stroma_fov_genelist) <- epi_stroma_foveola_sig$Gene
+
+# sort the list in decreasing order (required for clusterProfiler)
+epi_stroma_fov_genelist = sort(epi_stroma_fov_genelist, decreasing = TRUE)
+epi_stroma_fov_genelist
+
+#check which options of keytype fo rthe gene names re available
+keytypes(org.Hs.eg.db) # I will try using symbol
+
+gse <- gseGO(epi_stroma_fov_genelist, 
+                          ont ="ALL", 
+                          keyType = "SYMBOL", 
+                          nPerm = 10000, 
+                          minGSSize = 3, 
+                          maxGSSize = 800, 
+                          pvalueCutoff = 0.05, 
+                          verbose = TRUE, 
+                          OrgDb = organism, 
+                          pAdjustMethod = "none")
+
+results_GSA_epistr_fov <- gse@result
+write_excel_csv(results_GSA_epistr_fov, file = "results_GSA_epistr_fov.csv", ",")
+
+# Dotplot
+require(DOSE)
+dotplot(gse, showCategory=30, split=".sign", label_format = 5) + facet_grid(.~.sign)
+
+# Encrichment Map
+emapplot(gse, showCategory = 10) 
+# Error: Error in has_pairsim(x) : 
+# Term similarity matrix not available. Please use pairwise_termsim function to deal with the results of enrichment analysis.
+
+#install.packages("ggnewscale")
+library(ggnewscale)
+ema <- pairwise_termsim(gse, method = "JC", semData = NULL, showCategory = 200)
+emapplot(ema, showCategory = 10)
+
+# Ridgeplot
+#install.packages("ggridges")
+library(ggridges)
+ridgeplot(gse) + labs(x = "enrichment distribution")
+
+cnetplot(gse, categorySize="pvalue", foldChange=epi_stroma_fov_genelist, showCategory = 3)
+
+# Use the `Gene Set` param for the index in the title, and as the value for geneSetId
+gseaplot(gse, by = "all", title = gse$Description[3], geneSetID = 1)
+
+
+#Insert bonferroni correction
+gse_epistr_fov <- gseGO(epi_stroma_fov_genelist, 
+                        ont ="ALL", 
+                        keyType = "SYMBOL", 
+                        nPerm = 10000, 
+                        minGSSize = 3, 
+                        maxGSSize = 800, 
+                        pvalueCutoff = 0.05, 
+                        verbose = TRUE, 
+                        OrgDb = organism, 
+                        pAdjustMethod = "bonferroni")
+
+#with bonferroni correction, here are no results. why?
+
+# Create gseKEGG object
+# Prepare input
+
+# Convert gene IDs for gseKEGG function
+# We will lose some genes here because not all IDs will be converted
+ids<-bitr(names(epi_stroma_fov_genelist), fromType = "SYMBOL", toType = "ENTREZID", OrgDb=organism)
+ids
+# remove duplicate IDS (here I use "ENSEMBL", but it should be whatever was selected as keyType)
+dedup_ids = ids[!duplicated(ids[c("SYMBOL")]),]
+dedup_ids
+# Create a new dataframe df2 which has only the genes which were successfully mapped using the bitr function above
+epi_stroma_foveola_sig2 = epi_stroma_foveola_sig[epi_stroma_foveola_sig$Gene %in% dedup_ids$SYMBOL,]
+
+# Create a new column in df2 with the corresponding ENTREZ IDs
+epi_stroma_foveola_sig2$Y = dedup_ids$ENTREZID
+
+# Create a vector of the gene unuiverse
+kegg_epistro_foveola <- epi_stroma_foveola_sig2$log2FoldChange
+
+# Name vector with ENTREZ ids
+names(kegg_epistro_foveola) <- epi_stroma_foveola_sig2$Y
+kegg_epistro_foveola
+
+# sort the list in decreasing order (required for clusterProfiler)
+kegg_epistro_foveola = sort(kegg_epistro_foveola, decreasing = TRUE)
+
+kegg_organism = "hsa"
+kk2 <- gseKEGG(geneList     = kegg_epistro_foveola,
+               organism     = kegg_organism,
+               nPerm        = 10000,
+               minGSSize    = 3,
+               maxGSSize    = 800,
+               pvalueCutoff = 0.05,
+               pAdjustMethod = "none",
+               keyType       = "ncbi-geneid")
+# kegg is not working: error: Error in download.KEGG.Path(species) : 
+# 'species' should be one of organisms listed in 'http://www.genome.jp/kegg/catalog/org_list.html'...
+
+# ============filtering and pathway analysis for isthmus ====================
+
+#filter for isthmus
+
+epi_stroma_isthmus <- all_results_from_epi_stroma |> dplyr::filter(Zone == "Isthmus")
+epi_stroma_isthmus
+
+# creating df of only differntially expressed genes in isthmus
+epi_stroma_isthmus_sig <- epi_stroma_isthmus |> dplyr::filter(delabel != "NA")
+
+#vulcano plot isthmus only 
+
+ggplot(data=epi_stroma_isthmus, aes(x=Estimate, y=-log10(`Pr(>|t|)`), col=diffexpressed, label=delabel)) +
+  geom_point() + 
+  theme_minimal() +
+  geom_text_repel() +
+  labs(x = "log2 fold change", y = "Significance, -log10(P-value)") +
+  scale_color_manual(values=c("blue", "black", "red")) +
+  geom_vline(xintercept=c(-0.6, 0.6), col="red") +
+  geom_hline(yintercept=-log10(0.05), col="red")
+
+
+#create excel file 
+library(readr)
+write_excel_csv(epi_stroma_isthmus_sig, file = "epi_stroma_isthmus_sig.csv", ",")
+
+# pathway analysis with ClusterProfiler for ISTHMUS ONLY
+
+#BiocManager::install("clusterProfiler")
+#BiocManager::install("pathview")
+#BiocManager::install("enrichplot")
+library(clusterProfiler)
+library(enrichplot)
+
+colnames(epi_stroma_isthmus_sig) <- c("Gene", "Zone", "Contrast", "log2FoldChange", "pvalue", "FDR", "diffexpressed", "delabel")
+epi_stroma_isthmus_sig
+
+# SET THE DESIRED ORGANISM 
+organism = "org.Hs.eg.db"
+BiocManager::install(organism, character.only = TRUE)
+library(organism, character.only = TRUE)
+
+# log2 fold change
+epi_stroma_ist_genelist <- epi_stroma_isthmus_sig$log2FoldChange
+
+# name the vector
+names(epi_stroma_ist_genelist) <- epi_stroma_isthmus_sig$Gene
+
+# sort the list in decreasing order (required for clusterProfiler)
+epi_stroma_ist_genelist = sort(epi_stroma_ist_genelist, decreasing = TRUE)
+epi_stroma_ist_genelist
+
+gse_epistr_ist <- gseGO(epi_stroma_ist_genelist, 
+             ont ="ALL", 
+             keyType = "SYMBOL", 
+             nPerm = 10000, 
+             minGSSize = 3, 
+             maxGSSize = 800, 
+             pvalueCutoff = 0.05, 
+             verbose = TRUE, 
+             OrgDb = organism, 
+             pAdjustMethod = "none")
+
+results_GSA_epistr_ist <- gse_epistr_ist@result
+write_excel_csv(results_GSA_epistr_ist, file = "results_GSA_epistr_ist.csv", ",")
+gse_epistr_ist@result
+
+# Dotplot
+require(DOSE)
+dotplot(gse_epistr_ist, showCategory=30, split=".sign", label_format = 5) + facet_grid(.~.sign)
+
+# Encrichment Map
+emapplot(gse_epistr_ist, showCategory = 10) 
+# Error: Error in has_pairsim(x) : 
+# Term similarity matrix not available. Please use pairwise_termsim function to deal with the results of enrichment analysis.
+
+#install.packages("ggnewscale")
+library(ggnewscale)
+ema_ist <- pairwise_termsim(gse_epistr_ist, method = "JC", semData = NULL, showCategory = 200)
+emapplot(ema_ist, showCategory = 10)
+
+# Ridgeplot
+#install.packages("ggridges")
+library(ggridges)
+ridgeplot(gse_epistr_ist) + labs(x = "enrichment distribution")
+
+cnetplot(gse_epistr_ist, categorySize="pvalue", foldChange=epi_stroma_fov_genelist, showCategory = 3)
+
+# Use the `Gene Set` param for the index in the title, and as the value for geneSetId
+gseaplot(gse_epistr_ist, by = "all", title = gse_epistr_ist$Description[3], geneSetID = 1)
+
+# ============filtering and pathway analysis for NECK ====================
+
+#filter for neck
+
+epi_stroma_neck <- all_results_from_epi_stroma |> dplyr::filter(Zone == "Neck")
+epi_stroma_neck 
+
+# creating df of only differntially expressed genes in neck
+epi_stroma_neck_sig <- epi_stroma_neck |> dplyr::filter(delabel != "NA")
+epi_stroma_neck_sig
+
+#vulcano plot isthmus only 
+
+ggplot(data=epi_stroma_neck, aes(x=Estimate, y=-log10(`Pr(>|t|)`), col=diffexpressed, label=delabel)) +
+  geom_point() + 
+  theme_minimal() +
+  geom_text_repel() +
+  labs(x = "log2 fold change", y = "Significance, -log10(P-value)") +
+  scale_color_manual(values=c("blue", "black", "red")) +
+  geom_vline(xintercept=c(-0.6, 0.6), col="red") +
+  geom_hline(yintercept=-log10(0.05), col="red")
+
+
+#create excel file 
+write_excel_csv(epi_stroma_neck_sig, file = "epi_stroma_neck_sig.csv", ",")
+
+# pathway analysis with ClusterProfiler for NECK ONLY
+
+#BiocManager::install("clusterProfiler")
+#BiocManager::install("pathview")
+#BiocManager::install("enrichplot")
+
+colnames(epi_stroma_neck_sig) <- c("Gene", "Zone", "Contrast", "log2FoldChange", "pvalue", "FDR", "diffexpressed", "delabel")
+epi_stroma_neck_sig
+
+# log2 fold change
+epi_stroma_neck_genelist <- epi_stroma_neck_sig$log2FoldChange
+
+# name the vector
+names(epi_stroma_neck_genelist) <- epi_stroma_neck_sig$Gene
+
+# sort the list in decreasing order (required for clusterProfiler)
+epi_stroma_neck_genelist = sort(epi_stroma_neck_genelist, decreasing = TRUE)
+epi_stroma_neck_genelist
+
+gse_epistr_neck <- gseGO(epi_stroma_neck_genelist, 
+                        ont ="ALL", 
+                        keyType = "SYMBOL", 
+                        nPerm = 10000, 
+                        minGSSize = 3, 
+                        maxGSSize = 800, 
+                        pvalueCutoff = 0.05, 
+                        verbose = TRUE, 
+                        OrgDb = organism, 
+                        pAdjustMethod = "none")
+
+results_GSA_epistr_neck <- gse_epistr_neck@result
+write_excel_csv(results_GSA_epistr_neck, file = "results_GSA_epistr_neck.csv", ",")
+gse_epistr_neck@result
+
+# Dotplot
+require(DOSE)
+dotplot(gse_epistr_neck, showCategory=30, split=".sign", label_format = 5) + facet_grid(.~.sign)
+
+# Encrichment Map
+emapplot(gse_epistr_neck, showCategory = 10) 
+# Error: Error in has_pairsim(x) : 
+# Term similarity matrix not available. Please use pairwise_termsim function to deal with the results of enrichment analysis.
+
+#install.packages("ggnewscale")
+
+ema_neck <- pairwise_termsim(gse_epistr_neck, method = "JC", semData = NULL, showCategory = 200)
+emapplot(ema_neck, showCategory = 10)
+
+# Ridgeplot
+ridgeplot(gse_epistr_neck) + labs(x = "enrichment distribution")
+
+cnetplot(gse_epistr_neck, categorySize="pvalue", foldChange=epi_stroma_fov_genelist, showCategory = 3)
+
+# Use the `Gene Set` param for the index in the title, and as the value for geneSetId
+gseaplot(gse_epistr_neck, by = "all", title = gse_epistr_neck$Description[3], geneSetID = 1)
+ 
+
+# ============filtering and pathway analysis for BASE ====================
+
+#filter for base
+
+epi_stroma_base <- all_results_from_epi_stroma |> dplyr::filter(Zone == "Base")
+epi_stroma_base
+
+
+# creating df of only differntially expressed genes in base
+epi_stroma_base_sig <- epi_stroma_base |> dplyr::filter(delabel != "NA")
+
+#vulcano plot base only 
+
+ggplot(data=epi_stroma_base, aes(x=Estimate, y=-log10(`Pr(>|t|)`), col=diffexpressed, label=delabel)) +
+  geom_point() + 
+  theme_minimal() +
+  geom_text_repel() +
+  labs(x = "log2 fold change", y = "Significance, -log10(P-value)") +
+  scale_color_manual(values=c("blue", "black", "red")) +
+  geom_vline(xintercept=c(-0.6, 0.6), col="red") +
+  geom_hline(yintercept=-log10(0.05), col="red")
+
+
+#create excel file 
+
+write_excel_csv(epi_stroma_base_sig, file = "epi_stroma_base_sig.csv", ",")
+
+# pathway analysis with ClusterProfiler for BASE ONLY
+
+colnames(epi_stroma_base_sig) <- c("Gene", "Zone", "Contrast", "log2FoldChange", "pvalue", "FDR", "diffexpressed", "delabel")
+epi_stroma_base_sig
+
+# log2 fold change
+epi_stroma_base_genelist <- epi_stroma_base_sig$log2FoldChange
+
+# name the vector
+names(epi_stroma_base_genelist) <- epi_stroma_base_sig$Gene
+
+# sort the list in decreasing order (required for clusterProfiler)
+epi_stroma_base_genelist = sort(epi_stroma_base_genelist, decreasing = TRUE)
+epi_stroma_base_genelist
+
+gse_epistr_base <- gseGO(epi_stroma_base_genelist, 
+                        ont ="ALL", 
+                        keyType = "SYMBOL", 
+                        nPerm = 10000, 
+                        minGSSize = 3, 
+                        maxGSSize = 800, 
+                        pvalueCutoff = 0.05, 
+                        verbose = TRUE, 
+                        OrgDb = organism, 
+                        pAdjustMethod = "none")
+
+results_GSA_epistr_base <- gse_epistr_base@result
+write_excel_csv(results_GSA_epistr_base, file = "results_GSA_epistr_base.csv", ",")
+gse_epistr_base@result
+
+# Dotplot
+require(DOSE)
+dotplot(gse_epistr_base, showCategory=30, split=".sign", label_format = 5) + facet_grid(.~.sign)
+
+# Encrichment Map
+emapplot(gse_epistr_base, showCategory = 10) 
+# Error: Error in has_pairsim(x) : 
+# Term similarity matrix not available. Please use pairwise_termsim function to deal with the results of enrichment analysis.
+
+ema_base <- pairwise_termsim(gse_epistr_base, method = "JC", semData = NULL, showCategory = 200)
+emapplot(ema_base, showCategory = 10)
+
+# Ridgeplot
+
+ridgeplot(gse_epistr_base) + labs(x = "enrichment distribution")
+
+cnetplot(gse_epistr_base, categorySize="pvalue", foldChange=epi_stroma_fov_genelist, showCategory = 3)
+
+# Use the `Gene Set` param for the index in the title, and as the value for geneSetId
+gseaplot(gse_epistr_base, by = "all", title = gse_epistr_base$Description[3], geneSetID = 1)
+
 # =================================================================
+# inter epithelium 
 
 pData(target_nano_healthy_nQ3)$testZone <-
   factor(pData(target_nano_healthy_nQ3)$Zone, c("Foveola", "Isthmus", "Neck", "Base", "Muscularis"))
