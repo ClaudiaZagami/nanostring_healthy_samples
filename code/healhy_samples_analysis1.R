@@ -1048,6 +1048,15 @@ all_results_from_epi_stroma$diffexpressed[all_results_from_epi_stroma$Estimate >
 # if log2Foldchange < -0.6 and pvalue < 0.05, set as "DOWN" in our case stroma
 all_results_from_epi_stroma$diffexpressed[all_results_from_epi_stroma$Estimate < -0.6 & all_results_from_epi_stroma$`Pr(>|t|)` < 0.05] <- "Stroma"
 
+#cut off estimate 0.6 and FDR 0.05
+res_epistr_1_filt <- all_results_from_epi_stroma |> dplyr::filter(abs(Estimate) >= 0.6 & (Estimate) <= -0.6 & FDR <= 0.05)
+# with this params we get 0 results. 
+#res_epistr_1_filt <- res_epistr_1_filt$diffexpressed <- "NO"
+# if log2Foldchange > 0.6 and pvalue < 0.05, set as "UP" in our case epithelium
+#res_epistr_1_filt$diffexpressed[res_epistr_1_filt$Estimate > 0.6 & res_epistr_1_filt$`Pr(>|t|)` < 0.05] <- "Epithelium"
+# if log2Foldchange < -0.6 and pvalue < 0.05, set as "DOWN" in our case stroma
+#res_epistr_1_filt$diffexpressed[res_epistr_1_filt$Estimate < -0.6 & res_epistr_1_filt$`Pr(>|t|)` < 0.05] <- "Stroma"
+
 # Re-plot but this time color the points with "diffexpressed"
 p <- ggplot(data=all_results_from_epi_stroma, aes(x=Estimate, y=-log10(`Pr(>|t|)`), col=diffexpressed)) + geom_point() + theme_minimal()
 p
@@ -1114,7 +1123,7 @@ ggplot(data=epi_stroma_foveola, aes(x=Estimate, y=-log10(`Pr(>|t|)`), col=diffex
 
 # Filtering significant in stroma
 # cut off?
-epi_stroma_foveola_sig1 <- epi_stroma_foveola |> dplyr::filter(abs(Estimate) >= 1 & FDR <= 0.05)
+epi_stroma_foveola_sig1 <- epi_stroma_foveola |> dplyr::filter(abs(Estimate) >= 0.6 & FDR <= 0.05)
 
 #create excel file 
 write_excel_csv(epi_stroma_foveola_sig, file = "epi_stroma_foveola_sig.csv", ",")
@@ -1589,7 +1598,200 @@ epithelium_comparisons <- r_test
 #write table
 write_excel_csv(epithelium_comparisons, file = "epithelium_comparisons.csv", ",")
 
-epithelium_significant_comparisons <- r_test |> dplyr::filter(abs(Estimate) >= 1 & FDR <= 0.5)
+epithelium_significant_comparisons <- r_test |> dplyr::filter(abs(Estimate) >= 0.6 & (Estimate) <= -0.6 & FDR <= 0.05)
+
+# add a column of NAs
+epithelium_comparisons$diffexpressed <- "NO"
+# if log2Foldchange > 0.6 and pvalue < 0.05, set as "UP" 
+epithelium_comparisons$diffexpressed[epithelium_comparisons$Estimate > 0.6 & epithelium_comparisons$`Pr(>|t|)` < 0.05] <- "UP"
+# if log2Foldchange < -0.6 and pvalue < 0.05, set as "DOWN" 
+epithelium_comparisons$diffexpressed[epithelium_comparisons$Estimate < -0.6 & epithelium_comparisons$`Pr(>|t|)` < 0.05] <- "DOWN"
+
+# Now write down the name of genes beside the points.
+# Create a new column "delabel" to my detaframe, that will contain the name of genes differentially expressed (NA in case they are not)
+epithelium_comparisons$delabel <- NA
+epithelium_comparisons$delabel[epithelium_comparisons$diffexpressed != "NO"] <- epithelium_comparisons$Gene[epithelium_comparisons$diffexpressed != "NO"]
+
+# separate data for comparisons 
+
+epi_fov_ist <- epithelium_comparisons |> dplyr::filter(Contrast == "Foveola - Isthmus")
+epi_fov_ist
+
+# loop to separate the data.frame 
+unique_test <- unique(epithelium_comparisons$Contrast)
+unique_test
+
+for (i in unique_test){
+  assign(paste0("df_", i), subset(epithelium_comparisons, Contrast == i))
+  write_excel_csv(subset(epithelium_comparisons, Contrast == i), file = paste(i, ".xlsx"))
+}
+
+#vulcano plots 
+
+#Foveola-base
+ggplot(data=`df_Foveola - Base`, aes(x=Estimate, y=-log10(`Pr(>|t|)`), col=diffexpressed, label=delabel)) +
+  geom_point() + 
+  theme_minimal() +
+  geom_text_repel() +
+  labs(x = "Base <-    -> Foveola", y = "Significance, -log10(P-value)") +
+  scale_color_manual(values=c("blue", "black", "red")) +
+  geom_vline(xintercept=c(-0.6, 0.6), col="red") +
+  geom_hline(yintercept=-log10(0.05), col="red")
+
+#Foveola-isthmus
+ggplot(data=`df_Foveola - Isthmus`, aes(x=Estimate, y=-log10(`Pr(>|t|)`), col=diffexpressed, label=delabel)) +
+  geom_point() + 
+  theme_minimal() +
+  geom_text_repel() +
+  labs(x = "Isthmus <-    -> Foveola", y = "Significance, -log10(P-value)") +
+  scale_color_manual(values=c("blue", "black", "red")) +
+  geom_vline(xintercept=c(-0.6, 0.6), col="red") +
+  geom_hline(yintercept=-log10(0.05), col="red")
+
+#Foveola-Neck
+ggplot(data=`df_Foveola - Neck`, aes(x=Estimate, y=-log10(`Pr(>|t|)`), col=diffexpressed, label=delabel)) +
+  geom_point() + 
+  theme_minimal() +
+  geom_text_repel() +
+  labs(x = "Neck <-    -> Foveola", y = "Significance, -log10(P-value)") +
+  scale_color_manual(values=c("blue", "black", "red")) +
+  geom_vline(xintercept=c(-0.6, 0.6), col="red") +
+  geom_hline(yintercept=-log10(0.05), col="red")
+
+#Isthmus - Neck
+ggplot(data=`df_Isthmus - Neck`, aes(x=Estimate, y=-log10(`Pr(>|t|)`), col=diffexpressed, label=delabel)) +
+  geom_point() + 
+  theme_minimal() +
+  geom_text_repel() +
+  labs(x = "Neck <-    -> Isthmus", y = "Significance, -log10(P-value)") +
+  scale_color_manual(values=c("blue", "black", "red")) +
+  geom_vline(xintercept=c(-0.6, 0.6), col="red") +
+  geom_hline(yintercept=-log10(0.05), col="red")
+
+#Isthmus - Base
+ggplot(data=`df_Isthmus - Base`, aes(x=Estimate, y=-log10(`Pr(>|t|)`), col=diffexpressed, label=delabel)) +
+  geom_point() + 
+  theme_minimal() +
+  geom_text_repel() +
+  labs(x = "Base <-    -> Isthmus", y = "Significance, -log10(P-value)") +
+  scale_color_manual(values=c("blue", "black", "red")) +
+  geom_vline(xintercept=c(-0.6, 0.6), col="red") +
+  geom_hline(yintercept=-log10(0.05), col="red")
+
+#Neck - Base
+ggplot(data=`df_Neck - Base`, aes(x=Estimate, y=-log10(`Pr(>|t|)`), col=diffexpressed, label=delabel)) +
+  geom_point() + 
+  theme_minimal() +
+  theme(legend.position="none")+
+  geom_text_repel() +
+  labs(x = "Base <-    -> Neck", y = "Significance, -log10(P-value)") +
+  scale_color_manual(values=c("blue", "black", "red")) +
+  geom_vline(xintercept=c(-0.6, 0.6), col="red") +
+  geom_hline(yintercept=-log10(0.05), col="red")
+
+# is there a way to make a loop to create those graphs for all the conditions?
+# loop to create graphs for all conditions
+
+conditions_plots = list()
+for(i in unique_test) {
+  conditions_plots = ggplot((subset(epithelium_comparisons, Contrast == i)), aes(x=Estimate, y=-log10(`Pr(>|t|)`), col=diffexpressed, label=delabel), show.legend = FALSE) +
+    geom_point() + 
+    theme_minimal() +
+    theme(legend.position="none")+
+    geom_text_repel() +
+    ggtitle(str_c("Comparison (A-B) ", i)) +
+    labs(x = "B <-    -> A", y = "Significance, -log10(P-value)") +
+    scale_color_manual(values=c("blue", "black", "red")) +
+    geom_vline(xintercept=c(-0.6, 0.6), col="red") +
+    geom_hline(yintercept=-log10(0.05), col="red")
+  print(conditions_plots)
+}
+
+# to fix details about the naming but loop works. 
+
+# creating df of only differentially expressed genes with a for loop
+
+for (i in unique_test){
+  assign(paste0("df_sign_", i), subset(epithelium_comparisons, Contrast == i) |> dplyr::filter(delabel != "NA")) 
+  write_excel_csv(subset(epithelium_comparisons, Contrast == i), file = paste(i, ".xlsx"))
+}
+
+# now I want to try to do other clusterprofiler analysis with the loop. 
+# create a list of data.frames
+intra_epithelium = list()
+for (i in unique_test){
+  intra_epithelium[[i]] <- subset(epithelium_comparisons, Contrast == i)
+}
+
+# create the filtered version 
+intra_epithelium_filtr = list()
+for (i in unique_test){
+  intra_epithelium_filtr[[i]] <- subset(epithelium_comparisons, Contrast == i) |> dplyr::filter(delabel != "NA")
+}
+
+# for each df_sign_ 
+# make a vector from the column Pr(>|t|)
+intra_epi_genelists = list()
+for (i in unique_test){
+  assign(paste('vec_', i), intra_epithelium_filtr[[i]])
+}
+
+#from here.
+
+# log2 fold change
+epi_stroma_fov_genelist <- epi_stroma_foveola_sig$log2FoldChange
+
+for (i in unique_test){
+  assign(paste0("genlist_", i), subset(epithelium_comparisons, Contrast == i) |> dplyr::filter(delabel != "NA"))
+}
+
+# name the vector
+names(epi_stroma_ist_genelist) <- epi_stroma_isthmus_sig$Gene
+
+# sort the list in decreasing order (required for clusterProfiler)
+epi_stroma_ist_genelist = sort(epi_stroma_ist_genelist, decreasing = TRUE)
+epi_stroma_ist_genelist
+
+gse_epistr_ist <- gseGO(epi_stroma_ist_genelist, 
+                        ont ="ALL", 
+                        keyType = "SYMBOL", 
+                        nPerm = 10000, 
+                        minGSSize = 3, 
+                        maxGSSize = 800, 
+                        pvalueCutoff = 0.05, 
+                        verbose = TRUE, 
+                        OrgDb = organism, 
+                        pAdjustMethod = "none")
+
+results_GSA_epistr_ist <- gse_epistr_ist@result
+write_excel_csv(results_GSA_epistr_ist, file = "results_GSA_epistr_ist.csv", ",")
+gse_epistr_ist@result
+
+# Dotplot
+require(DOSE)
+dotplot(gse_epistr_ist, showCategory=30, split=".sign", label_format = 5) + facet_grid(.~.sign)
+
+# Encrichment Map
+emapplot(gse_epistr_ist, showCategory = 10) 
+# Error: Error in has_pairsim(x) : 
+# Term similarity matrix not available. Please use pairwise_termsim function to deal with the results of enrichment analysis.
+
+#install.packages("ggnewscale")
+library(ggnewscale)
+ema_ist <- pairwise_termsim(gse_epistr_ist, method = "JC", semData = NULL, showCategory = 200)
+emapplot(ema_ist, showCategory = 10)
+
+# Ridgeplot
+#install.packages("ggridges")
+library(ggridges)
+ridgeplot(gse_epistr_ist) + labs(x = "enrichment distribution")
+
+cnetplot(gse_epistr_ist, categorySize="pvalue", foldChange=epi_stroma_fov_genelist, showCategory = 3)
+
+# Use the `Gene Set` param for the index in the title, and as the value for geneSetId
+gseaplot(gse_epistr_ist, by = "all", title = gse_epistr_ist$Description[3], geneSetID = 1)
+
+
 
 # =====
 # Stroma
@@ -1621,12 +1823,10 @@ stroma_comparisons <- r_test
 #write table
 write_excel_csv(stroma_comparisons, file = "stroma_comparisons.csv", ",")
 
-stroma_significant_comparisons <- r_test |> dplyr::filter(abs(Estimate) >= 1 & FDR <= 0.05)
+stroma_significant_comparisons <- r_test |> dplyr::filter(abs(Estimate) >= 0.6 & (Estimate) <= -0.6 & FDR <= 0.05)
 
 
-# between slides?
-# Marton: To do the comparison between healthy & diseased we need to load the cancer data 
-# Marton: If I understand correctly so far we have only loaded the healthy data
+
 
 # Using biobroom
 # Installing them first:
