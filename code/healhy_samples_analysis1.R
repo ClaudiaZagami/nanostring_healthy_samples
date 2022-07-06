@@ -1622,7 +1622,7 @@ unique_test <- unique(epithelium_comparisons$Contrast)
 unique_test
 
 for (i in unique_test){
-  assign(paste0("df_", i), subset(epithelium_comparisons, Contrast == i))
+  assign(paste0("epi_", i), subset(epithelium_comparisons, Contrast == i))
   write_excel_csv(subset(epithelium_comparisons, Contrast == i), file = paste(i, ".xlsx"))
 }
 
@@ -1712,7 +1712,7 @@ for(i in unique_test) {
 # creating df of only differentially expressed genes with a for loop
 
 for (i in unique_test){
-  assign(paste0("df_sign_", i), subset(epithelium_comparisons, Contrast == i) |> dplyr::filter(delabel != "NA")) 
+  assign(paste0("epi_sign_", i), subset(epithelium_comparisons, Contrast == i) |> dplyr::filter(delabel != "NA")) 
   write_excel_csv(subset(epithelium_comparisons, Contrast == i), file = paste(i, ".xlsx"))
 }
 
@@ -1731,65 +1731,59 @@ for (i in unique_test){
 
 # for each df_sign_ 
 # make a vector from the column Pr(>|t|)
+##### CAN WE WORK ON THOSE LOOPS TOGETHER?
 intra_epi_genelists = list()
 for (i in unique_test){
   assign(paste('vec_', i), intra_epithelium_filtr[[i]])
 }
-
-#from here.
-
-# log2 fold change
-epi_stroma_fov_genelist <- epi_stroma_foveola_sig$log2FoldChange
 
 for (i in unique_test){
   assign(paste0("genlist_", i), subset(epithelium_comparisons, Contrast == i) |> dplyr::filter(delabel != "NA"))
 }
 
 # name the vector
-names(epi_stroma_ist_genelist) <- epi_stroma_isthmus_sig$Gene
+# names(epi_stroma_ist_genelist) <- epi_stroma_isthmus_sig$Gene
 
 # sort the list in decreasing order (required for clusterProfiler)
-epi_stroma_ist_genelist = sort(epi_stroma_ist_genelist, decreasing = TRUE)
-epi_stroma_ist_genelist
+# epi_stroma_ist_genelist = sort(epi_stroma_ist_genelist, decreasing = TRUE)
+# epi_stroma_ist_genelist
 
-gse_epistr_ist <- gseGO(epi_stroma_ist_genelist, 
-                        ont ="ALL", 
-                        keyType = "SYMBOL", 
-                        nPerm = 10000, 
-                        minGSSize = 3, 
-                        maxGSSize = 800, 
-                        pvalueCutoff = 0.05, 
-                        verbose = TRUE, 
-                        OrgDb = organism, 
-                        pAdjustMethod = "none")
+#gse_epistr_ist <- gseGO(epi_stroma_ist_genelist, 
+#                        ont ="ALL", 
+#                        keyType = "SYMBOL", 
+#                        nPerm = 10000, 
+#                        minGSSize = 3, 
+#                        maxGSSize = 800, 
+#                        pvalueCutoff = 0.05, 
+#                        verbose = TRUE, 
+#                        OrgDb = organism, 
+#                        pAdjustMethod = "none")
 
-results_GSA_epistr_ist <- gse_epistr_ist@result
-write_excel_csv(results_GSA_epistr_ist, file = "results_GSA_epistr_ist.csv", ",")
-gse_epistr_ist@result
+#results_GSA_epistr_ist <- gse_epistr_ist@result
+#(results_GSA_epistr_ist, file = "results_GSA_epistr_ist.csv", ",")
+#gse_epistr_ist@result
 
 # Dotplot
-require(DOSE)
-dotplot(gse_epistr_ist, showCategory=30, split=".sign", label_format = 5) + facet_grid(.~.sign)
+#require(DOSE)
+#dotplot(gse_epistr_ist, showCategory=30, split=".sign", label_format = 5) + facet_grid(.~.sign)
 
 # Encrichment Map
-emapplot(gse_epistr_ist, showCategory = 10) 
+#emapplot(gse_epistr_ist, showCategory = 10) 
 # Error: Error in has_pairsim(x) : 
 # Term similarity matrix not available. Please use pairwise_termsim function to deal with the results of enrichment analysis.
 
 #install.packages("ggnewscale")
-library(ggnewscale)
-ema_ist <- pairwise_termsim(gse_epistr_ist, method = "JC", semData = NULL, showCategory = 200)
-emapplot(ema_ist, showCategory = 10)
+#library(ggnewscale)
+#ema_ist <- pairwise_termsim(gse_epistr_ist, method = "JC", semData = NULL, showCategory = 200)
+#emapplot(ema_ist, showCategory = 10)
 
 # Ridgeplot
-#install.packages("ggridges")
-library(ggridges)
-ridgeplot(gse_epistr_ist) + labs(x = "enrichment distribution")
+#ridgeplot(gse_epistr_ist) + labs(x = "enrichment distribution")
 
-cnetplot(gse_epistr_ist, categorySize="pvalue", foldChange=epi_stroma_fov_genelist, showCategory = 3)
+#cnetplot(gse_epistr_ist, categorySize="pvalue", foldChange=epi_stroma_fov_genelist, showCategory = 3)
 
 # Use the `Gene Set` param for the index in the title, and as the value for geneSetId
-gseaplot(gse_epistr_ist, by = "all", title = gse_epistr_ist$Description[3], geneSetID = 1)
+#gseaplot(gse_epistr_ist, by = "all", title = gse_epistr_ist$Description[3], geneSetID = 1)
 
 
 
@@ -1820,17 +1814,82 @@ r_test <- r_test[, c("Gene", "Class", "Contrast", "Estimate",
 
 stroma_comparisons <- r_test
 
+# add a column of NAs
+stroma_comparisons$diffexpressed <- "NO"
+# if log2Foldchange > 0.6 and pvalue < 0.05, set as "UP" 
+stroma_comparisons$diffexpressed[stroma_comparisons$Estimate > 0.6 & stroma_comparisons$`Pr(>|t|)` < 0.05] <- "UP"
+# if log2Foldchange < -0.6 and pvalue < 0.05, set as "DOWN" 
+stroma_comparisons$diffexpressed[stroma_comparisons$Estimate < -0.6 & stroma_comparisons$`Pr(>|t|)` < 0.05] <- "DOWN"
+
+# Now write down the name of genes beside the points.
+# Create a new column "delabel" to my detaframe, that will contain the name of genes differentially expressed (NA in case they are not)
+stroma_comparisons$delabel <- NA
+stroma_comparisons$delabel[stroma_comparisons$diffexpressed != "NO"] <- stroma_comparisons$Gene[stroma_comparisons$diffexpressed != "NO"]
+
 #write table
 write_excel_csv(stroma_comparisons, file = "stroma_comparisons.csv", ",")
 
 stroma_significant_comparisons <- r_test |> dplyr::filter(abs(Estimate) >= 0.6 & (Estimate) <= -0.6 & FDR <= 0.05)
+# with those cut off we get only 17 genes. 
+
+# loop to separate the data.frame 
+unique_test_str <- unique(stroma_comparisons$Contrast)
+unique_test_str 
+
+for (i in unique_test_str){
+  assign(paste0("str_", i), subset(stroma_comparisons, Contrast == i))
+  write_excel_csv(subset(stroma_comparisons, Contrast == i), file = paste(i, ".xlsx"))
+}
+
+# loop to create graphs for all conditions
+
+conditions_plots_str = list()
+for(i in unique_test_str) {
+  conditions_plots_str = ggplot((subset(stroma_comparisons, Contrast == i)), aes(x=Estimate, y=-log10(`Pr(>|t|)`), col=diffexpressed, label=delabel), show.legend = FALSE) +
+    geom_point() + 
+    theme_minimal() +
+    theme(legend.position="none")+
+    geom_text_repel() +
+    ggtitle(str_c("Comparison (A-B) ", i)) +
+    labs(x = "B <-    -> A", y = "Significance, -log10(P-value)") +
+    scale_color_manual(values=c("blue", "black", "red")) +
+    geom_vline(xintercept=c(-0.6, 0.6), col="red") +
+    geom_hline(yintercept=-log10(0.05), col="red")
+  print(conditions_plots_str)
+}
+
+# creating df of only differentially expressed genes with a for loop
+
+for (i in unique_test_str){
+  assign(paste0("str_sign_", i), subset(stroma_comparisons, Contrast == i) |> dplyr::filter(delabel != "NA")) 
+  write_excel_csv(subset(stroma_comparisons, Contrast == i), file = paste(i, ".xlsx"))
+}
+
+# now I want to try to do other clusterprofiler analysis with the loop. 
+# create a list of data.frames
+intra_stroma = list()
+for (i in unique_test_str){
+  intra_stroma[[i]] <- subset(stroma_comparisons, Contrast == i)
+}
+
+# create the filtered version 
+intra_stroma_filtr = list()
+for (i in unique_test_str){
+  intra_stroma_filtr[[i]] <- subset(stroma_comparisons, Contrast == i) |> dplyr::filter(delabel != "NA")
+}
+
+# for each df_sign_ 
+# make a vector from the column Pr(>|t|)
 
 
 
 
+#----------------------------------------------------------------------------
 # Using biobroom
 # Installing them first:
 # if (!requireNamespace("BiocManager", quietly=TRUE))
 # install.packages("BiocManager")
 # BiocManager::install("biobroom")
 
+#----------------------------------------------------------------------------
+# creating code for analysis of gradients
