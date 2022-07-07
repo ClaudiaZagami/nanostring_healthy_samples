@@ -1623,7 +1623,7 @@ unique_test
 
 for (i in unique_test){
   assign(paste0("epi_", i), subset(epithelium_comparisons, Contrast == i))
-  write_excel_csv(subset(epithelium_comparisons, Contrast == i), file = paste(i, ".xlsx"))
+  write_excel_csv(subset(epithelium_comparisons, Contrast == i), file = paste("epi_", i, ".csv"))
 }
 
 #vulcano plots 
@@ -1713,10 +1713,25 @@ for(i in unique_test) {
 
 for (i in unique_test){
   assign(paste0("epi_sign_", i), subset(epithelium_comparisons, Contrast == i) |> dplyr::filter(delabel != "NA")) 
-  write_excel_csv(subset(epithelium_comparisons, Contrast == i), file = paste(i, ".xlsx"))
+  write_excel_csv(subset(epithelium_comparisons, Contrast == i), file = paste("epi_sign_", i, ".csv"))
 }
 
 # now I want to try to do other clusterprofiler analysis with the loop. 
+
+# create a function for gse analysis to insert in the loop
+gse_fun = function(genelist = NULL){
+  gseGO(genelist, 
+        ont ="ALL", 
+        keyType = "SYMBOL", 
+        nPerm = 10000, 
+        minGSSize = 3, 
+        maxGSSize = 800, 
+        pvalueCutoff = 0.05, 
+        verbose = TRUE, 
+        OrgDb = organism, 
+        pAdjustMethod = "none")
+}
+
 # create a list of data.frames
 intra_epithelium = list()
 for (i in unique_test){
@@ -1729,39 +1744,62 @@ for (i in unique_test){
   intra_epithelium_filtr[[i]] <- subset(epithelium_comparisons, Contrast == i) |> dplyr::filter(delabel != "NA")
 }
 
-# for each df_sign_ 
-# make a vector from the column Pr(>|t|)
-##### CAN WE WORK ON THOSE LOOPS TOGETHER?
+
 intra_epi_genelists = list()
 for (i in unique_test){
-  assign(paste('vec_', i), intra_epithelium_filtr[[i]])
+  intra_epi_genelists[[i]] <- intra_epithelium_filtr[[i]][["Pr(>|t|)"]]
+  names(intra_epi_genelists[[i]]) <- intra_epithelium_filtr[[i]][["Gene"]]
+  intra_epi_genelists[[i]] = sort(intra_epi_genelists[[i]], decreasing = T)
+  assign(paste0("gse_epi_", i), gse_fun(intra_epi_genelists[[i]]))
 }
 
+
+# Manual creation of df and plots but I would like to continue the loop to do everything automatically
+
+#foveola-base
+res_gsa_epi_fov_base <- `gse_epi_Foveola - Base`@result
+write_excel_csv(res_gsa_epi_fov_base, file = "res_gsa_epi_fov_base.csv", ",")
+dotplot(`gse_epi_Foveola - Base`, showCategory=30, split=".sign", label_format = 5) + facet_grid(.~.sign)
+
+#foveola-isthmus
+res_gsa_epi_fov_ist <- `gse_epi_Foveola - Isthmus`@result
+write_excel_csv(res_gsa_epi_fov_ist, file = "res_gsa_epi_fov_ist.csv", ",")
+dotplot(`gse_epi_Foveola - Isthmus`, showCategory=30, split=".sign", label_format = 5) + facet_grid(.~.sign)
+
+#foveola-neck
+res_gsa_epi_fov_neck <- `gse_epi_Foveola - Neck`@result
+write_excel_csv(res_gsa_epi_fov_neck, file = "res_gsa_epi_fov_neck.csv", ",")
+dotplot(`gse_epi_Foveola - Neck`, showCategory=30, split=".sign", label_format = 5) + facet_grid(.~.sign)
+
+#isthmus-base
+res_gsa_epi_ist_base <- `gse_epi_Isthmus - Base`@result
+write_excel_csv(res_gsa_epi_ist_base, file = "res_gsa_epi_ist_base.csv", ",")
+dotplot(`gse_epi_Isthmus - Base`, showCategory=30, split=".sign", label_format = 5) + facet_grid(.~.sign)
+
+#isthmus-neck
+res_gsa_epi_ist_neck <- `gse_epi_Isthmus - Neck`@result
+write_excel_csv(res_gsa_epi_ist_neck, file = "res_gsa_epi_ist_neck.csv", ",")
+dotplot(`gse_epi_Isthmus - Neck`, showCategory=30, split=".sign", label_format = 5) + facet_grid(.~.sign)
+
+#neck-base #no pathways
+res_gsa_epi_neck_base <- `gse_epi_Neck - Base`@result
+write_excel_csv(res_gsa_epi_neck_base, file = "res_gsa_epi_neck_base.csv", ",")
+dotplot(`gse_epi_Neck - Base`, showCategory=30, split=".sign", label_format = 5) + facet_grid(.~.sign)
+
+
+# loop to create results table from each gse 
+list_gse <- mget(ls(pattern = "^gse_epi_")) #list of results
 for (i in unique_test){
-  assign(paste0("genlist_", i), subset(epithelium_comparisons, Contrast == i) |> dplyr::filter(delabel != "NA"))
+  Nres_gsa_epi_[[i]] <- (list_gse[["gse_epi_",i]]@result)
 }
 
-# name the vector
-# names(epi_stroma_ist_genelist) <- epi_stroma_isthmus_sig$Gene
 
-# sort the list in decreasing order (required for clusterProfiler)
-# epi_stroma_ist_genelist = sort(epi_stroma_ist_genelist, decreasing = TRUE)
-# epi_stroma_ist_genelist
+#loop to create plots 
+epi_plots = list()
+dotplot(list_gse[[]], showCategory=30, split=".sign", label_format = 5) + facet_grid(.~.sign)
+print(epi_plots)
 
-#gse_epistr_ist <- gseGO(epi_stroma_ist_genelist, 
-#                        ont ="ALL", 
-#                        keyType = "SYMBOL", 
-#                        nPerm = 10000, 
-#                        minGSSize = 3, 
-#                        maxGSSize = 800, 
-#                        pvalueCutoff = 0.05, 
-#                        verbose = TRUE, 
-#                        OrgDb = organism, 
-#                        pAdjustMethod = "none")
 
-#results_GSA_epistr_ist <- gse_epistr_ist@result
-#(results_GSA_epistr_ist, file = "results_GSA_epistr_ist.csv", ",")
-#gse_epistr_ist@result
 
 # Dotplot
 #require(DOSE)
@@ -1838,7 +1876,7 @@ unique_test_str
 
 for (i in unique_test_str){
   assign(paste0("str_", i), subset(stroma_comparisons, Contrast == i))
-  write_excel_csv(subset(stroma_comparisons, Contrast == i), file = paste(i, ".xlsx"))
+  write_excel_csv(subset(stroma_comparisons, Contrast == i), file = paste("str_", i, ".csv"))
 }
 
 # loop to create graphs for all conditions
@@ -1862,7 +1900,7 @@ for(i in unique_test_str) {
 
 for (i in unique_test_str){
   assign(paste0("str_sign_", i), subset(stroma_comparisons, Contrast == i) |> dplyr::filter(delabel != "NA")) 
-  write_excel_csv(subset(stroma_comparisons, Contrast == i), file = paste(i, ".xlsx"))
+  write_excel_csv(subset(stroma_comparisons, Contrast == i), file = paste("str_sign_", i, ".csv"))
 }
 
 # now I want to try to do other clusterprofiler analysis with the loop. 
@@ -1878,10 +1916,18 @@ for (i in unique_test_str){
   intra_stroma_filtr[[i]] <- subset(stroma_comparisons, Contrast == i) |> dplyr::filter(delabel != "NA")
 }
 
+
+intra_stroma_genelists = list()
+for (i in unique_test_str){
+  intra_stroma_genelists[[i]] <- intra_stroma_filtr[[i]][["Pr(>|t|)"]]
+  names(intra_stroma_genelists[[i]]) <- intra_stroma_filtr[[i]][["Gene"]]
+  intra_stroma_genelists[[i]] = sort(intra_stroma_genelists[[i]], decreasing = T)
+  assign(paste0("gse_stroma_", i), gse_fun(intra_stroma_genelists[[i]]))
+}
+
+
 # for each df_sign_ 
 # make a vector from the column Pr(>|t|)
-
-
 
 
 #----------------------------------------------------------------------------
@@ -1893,3 +1939,5 @@ for (i in unique_test_str){
 
 #----------------------------------------------------------------------------
 # creating code for analysis of gradients
+
+
