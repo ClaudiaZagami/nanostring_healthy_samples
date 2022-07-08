@@ -943,7 +943,7 @@ for (i in c("Foveola", "Isthmus", "Neck", "Base")) {
   
 all_results_from_epi_stroma <- bind_rows(results_1)
 all_results_from_epi_stroma_1 <- bind_rows(results_1)
-
+library(readr)
 write_excel_csv(results_1[["Foveola"]], file = "results_foveola_EvsS.csv", ",")
 write_excel_csv(results_1[["Isthmus"]], file = "results_isthmus_EvsS.csv", ",")
 write_excel_csv(results_1[["Neck"]], file = "results_neck_EvsS.csv", ",")
@@ -1170,7 +1170,7 @@ epi_stroma_foveola_sig
 
 # SET THE DESIRED ORGANISM 
 organism = "org.Hs.eg.db"
-BiocManager::install(organism, character.only = TRUE)
+#BiocManager::install(organism, character.only = TRUE)
 library(organism, character.only = TRUE)
 
 ## Example to understand the code
@@ -1318,28 +1318,17 @@ ggplot(data=epi_stroma_isthmus, aes(x=Estimate, y=-log10(`Pr(>|t|)`), col=diffex
 
 
 #create excel file 
-library(readr)
+
 write_excel_csv(epi_stroma_isthmus_sig, file = "epi_stroma_isthmus_sig.csv", ",")
 
 # pathway analysis with ClusterProfiler for ISTHMUS ONLY
 
-#BiocManager::install("clusterProfiler")
-#BiocManager::install("pathview")
-#BiocManager::install("enrichplot")
-library(clusterProfiler)
-library(enrichplot)
-
 colnames(epi_stroma_isthmus_sig) <- c("Gene", "Zone", "Contrast", "log2FoldChange", "pvalue", "FDR", "diffexpressed", "delabel")
 epi_stroma_isthmus_sig
 
-# SET THE DESIRED ORGANISM 
-organism = "org.Hs.eg.db"
-BiocManager::install(organism, character.only = TRUE)
-library(organism, character.only = TRUE)
-
 # log2 fold change
 epi_stroma_ist_genelist <- epi_stroma_isthmus_sig$log2FoldChange
-
+epi_stroma_ist_genelist
 # name the vector
 names(epi_stroma_ist_genelist) <- epi_stroma_isthmus_sig$Gene
 
@@ -1364,21 +1353,13 @@ gse_epistr_ist@result
 
 # Dotplot
 require(DOSE)
-dotplot(gse_epistr_ist, showCategory=30, split=".sign", label_format = 5) + facet_grid(.~.sign)
+dotplot(gse_epistr_ist, showCategory=15, split=".sign", label_format = 5) + facet_grid(.~.sign)
 
 # Encrichment Map
-emapplot(gse_epistr_ist, showCategory = 10) 
-# Error: Error in has_pairsim(x) : 
-# Term similarity matrix not available. Please use pairwise_termsim function to deal with the results of enrichment analysis.
-
-#install.packages("ggnewscale")
-library(ggnewscale)
 ema_ist <- pairwise_termsim(gse_epistr_ist, method = "JC", semData = NULL, showCategory = 200)
 emapplot(ema_ist, showCategory = 10)
 
 # Ridgeplot
-#install.packages("ggridges")
-library(ggridges)
 ridgeplot(gse_epistr_ist) + labs(x = "enrichment distribution")
 
 cnetplot(gse_epistr_ist, categorySize="pvalue", foldChange=epi_stroma_fov_genelist, showCategory = 3)
@@ -1414,10 +1395,6 @@ write_excel_csv(epi_stroma_neck_sig, file = "epi_stroma_neck_sig.csv", ",")
 
 # pathway analysis with ClusterProfiler for NECK ONLY
 
-#BiocManager::install("clusterProfiler")
-#BiocManager::install("pathview")
-#BiocManager::install("enrichplot")
-
 colnames(epi_stroma_neck_sig) <- c("Gene", "Zone", "Contrast", "log2FoldChange", "pvalue", "FDR", "diffexpressed", "delabel")
 epi_stroma_neck_sig
 
@@ -1447,16 +1424,9 @@ write_excel_csv(results_GSA_epistr_neck, file = "results_GSA_epistr_neck.csv", "
 gse_epistr_neck@result
 
 # Dotplot
-require(DOSE)
 dotplot(gse_epistr_neck, showCategory=30, split=".sign", label_format = 5) + facet_grid(.~.sign)
 
 # Encrichment Map
-emapplot(gse_epistr_neck, showCategory = 10) 
-# Error: Error in has_pairsim(x) : 
-# Term similarity matrix not available. Please use pairwise_termsim function to deal with the results of enrichment analysis.
-
-#install.packages("ggnewscale")
-
 ema_neck <- pairwise_termsim(gse_epistr_neck, method = "JC", semData = NULL, showCategory = 200)
 emapplot(ema_neck, showCategory = 10)
 
@@ -1527,13 +1497,10 @@ write_excel_csv(results_GSA_epistr_base, file = "results_GSA_epistr_base.csv", "
 gse_epistr_base@result
 
 # Dotplot
-require(DOSE)
+
 dotplot(gse_epistr_base, showCategory=30, split=".sign", label_format = 5) + facet_grid(.~.sign)
 
 # Encrichment Map
-emapplot(gse_epistr_base, showCategory = 10) 
-# Error: Error in has_pairsim(x) : 
-# Term similarity matrix not available. Please use pairwise_termsim function to deal with the results of enrichment analysis.
 
 ema_base <- pairwise_termsim(gse_epistr_base, method = "JC", semData = NULL, showCategory = 200)
 emapplot(ema_base, showCategory = 10)
@@ -1629,7 +1596,7 @@ for (i in unique_test){
 #vulcano plots 
 
 #Foveola-base
-ggplot(data=`df_Foveola - Base`, aes(x=Estimate, y=-log10(`Pr(>|t|)`), col=diffexpressed, label=delabel)) +
+ggplot(data=`epi_Foveola - Base`, aes(x=Estimate, y=-log10(`Pr(>|t|)`), col=diffexpressed, label=delabel)) +
   geom_point() + 
   theme_minimal() +
   geom_text_repel() +
@@ -1789,16 +1756,36 @@ dotplot(`gse_epi_Neck - Base`, showCategory=30, split=".sign", label_format = 5)
 
 # loop to create results table from each gse 
 list_gse <- mget(ls(pattern = "^gse_epi_")) #list of results
-for (i in unique_test){
-  Nres_gsa_epi_[[i]] <- (list_gse[["gse_epi_",i]]@result)
+
+list_gse_names <- names(list_gse)
+
+for (i in list_gse_names){
+  assign(paste0("res_", i), as.data.frame(list_gse[[i]]@result))
+  write_excel_csv((list_gse[[i]]@result), file = paste("res_", i, ".csv"))
 }
 
+#loop in words
+#for each object in the list of the gse
+#make a list of data frames of the results only
+#separate them and make csv documents. 
 
 #loop to create plots 
-epi_plots = list()
-dotplot(list_gse[[]], showCategory=30, split=".sign", label_format = 5) + facet_grid(.~.sign)
-print(epi_plots)
 
+for (i in list_gse_names){
+assign(paste0("dplt_", i), dotplot(list_gse[[i]], showCategory=30, split=".sign", label_format = 5) + facet_grid(.~.sign))
+} # How can I print all the results?
+
+
+
+# here I made a function it is not working
+dplot = function(data = NULL, category = NULL){
+  dplt <- dotplot(data, showCategory= category, split=".sign", label_format = 5) + facet_grid(.~.sign)
+dplt
+}
+
+for (i in list_gse_names){
+  dplot(list_gse[[i]], category = 15)
+}
 
 
 # Dotplot
@@ -1916,7 +1903,6 @@ for (i in unique_test_str){
   intra_stroma_filtr[[i]] <- subset(stroma_comparisons, Contrast == i) |> dplyr::filter(delabel != "NA")
 }
 
-
 intra_stroma_genelists = list()
 for (i in unique_test_str){
   intra_stroma_genelists[[i]] <- intra_stroma_filtr[[i]][["Pr(>|t|)"]]
@@ -1925,10 +1911,30 @@ for (i in unique_test_str){
   assign(paste0("gse_stroma_", i), gse_fun(intra_stroma_genelists[[i]]))
 }
 
+# loop to create results table from each gse 
+list_gse_str <- mget(ls(pattern = "^gse_stroma_")) #list of results
 
-# for each df_sign_ 
-# make a vector from the column Pr(>|t|)
+list_gse_str_names <- names(list_gse_str)
 
+for (i in list_gse_str_names){
+  assign(paste0("res_", i), as.data.frame(list_gse_str[[i]]@result))
+  write_excel_csv((list_gse_str[[i]]@result), file = paste("res_str_", i, ".csv"))
+}
+
+#loop in words
+#for each object in the list of the gse
+#make a list of data frames of the results only
+#separate them and make csv documents. 
+
+#loop to create plots 
+
+for (i in list_gse_str_names){
+  assign(paste0("dplt_str_", i), dotplot(list_gse_str[[i]], showCategory=30, split=".sign", label_format = 5) + facet_grid(.~.sign))
+}
+
+`dplt_str_gse_stroma_Isthmus - Muscularis`
+
+#create all the graphs. 
 
 #----------------------------------------------------------------------------
 # Using biobroom
@@ -1939,5 +1945,6 @@ for (i in unique_test_str){
 
 #----------------------------------------------------------------------------
 # creating code for analysis of gradients
+
 
 
