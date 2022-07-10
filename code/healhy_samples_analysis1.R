@@ -233,6 +233,7 @@ QC_histogram(sData(nano_healthy_shifted), "Saturated (%)", col_by, 50) +
        x = "Sequencing Saturation (%)"
     )
 QC_histogram(nano_healthy_shifted, "nuclei", col_by, 20)
+QC_histogram(sData(nano_healthy_shifted), "area", col_by, 1000, scale_trans = "log10")
 
 # calculate the negative geometric means for each module
 
@@ -1096,6 +1097,7 @@ ggplot(data=all_results_from_epi_stroma, aes(x=Estimate, y=-log10(`Pr(>|t|)`), c
   geom_point() + 
   theme_minimal() +
   geom_text_repel() +
+  ggtitle(str_c("All zones"))+
   labs(x = "log2 fold change", y = "Significance, -log10(P-value)") +
   scale_color_manual(values=c("red", "black", "blue")) +
   geom_vline(xintercept=c(-0.6, 0.6), col="red") +
@@ -1116,8 +1118,9 @@ ggplot(data=epi_stroma_foveola, aes(x=Estimate, y=-log10(`Pr(>|t|)`), col=diffex
   geom_point() + 
   theme_minimal() +
   geom_text_repel() +
+  ggtitle(str_c("Foveola"))+
   labs(x = "log2 fold change", y = "Significance, -log10(P-value)") +
-  scale_color_manual(values=c("blue", "black", "red")) +
+  scale_color_manual(values=c("red", "black", "blue")) +
   geom_vline(xintercept=c(-0.6, 0.6), col="red") +
   geom_hline(yintercept=-log10(0.05), col="red")
 
@@ -1220,7 +1223,7 @@ write_excel_csv(results_GSA_epistr_fov, file = "results_GSA_epistr_fov.csv", ","
 
 # Dotplot
 require(DOSE)
-dotplot(gse, showCategory=30, split=".sign", label_format = 5) + facet_grid(.~.sign)
+dotplot(gse, showCategory=10, split=".sign", label_format = 3) + facet_grid(.~.sign)
 
 # Encrichment Map
 emapplot(gse, showCategory = 10) 
@@ -1311,8 +1314,9 @@ ggplot(data=epi_stroma_isthmus, aes(x=Estimate, y=-log10(`Pr(>|t|)`), col=diffex
   geom_point() + 
   theme_minimal() +
   geom_text_repel() +
+  ggtitle(str_c("Isthmus"))+
   labs(x = "log2 fold change", y = "Significance, -log10(P-value)") +
-  scale_color_manual(values=c("blue", "black", "red")) +
+  scale_color_manual(values=c("red", "black", "blue")) +
   geom_vline(xintercept=c(-0.6, 0.6), col="red") +
   geom_hline(yintercept=-log10(0.05), col="red")
 
@@ -1353,7 +1357,7 @@ gse_epistr_ist@result
 
 # Dotplot
 require(DOSE)
-dotplot(gse_epistr_ist, showCategory=15, split=".sign", label_format = 5) + facet_grid(.~.sign)
+dotplot(gse_epistr_ist, showCategory=10, split=".sign", label_format = 5) + facet_grid(.~.sign)
 
 # Encrichment Map
 ema_ist <- pairwise_termsim(gse_epistr_ist, method = "JC", semData = NULL, showCategory = 200)
@@ -1378,14 +1382,15 @@ epi_stroma_neck
 epi_stroma_neck_sig <- epi_stroma_neck |> dplyr::filter(delabel != "NA")
 epi_stroma_neck_sig
 
-#vulcano plot isthmus only 
+#vulcano plot neck only 
 
 ggplot(data=epi_stroma_neck, aes(x=Estimate, y=-log10(`Pr(>|t|)`), col=diffexpressed, label=delabel)) +
   geom_point() + 
   theme_minimal() +
   geom_text_repel() +
+  ggtitle(str_c("Neck"))+
   labs(x = "log2 fold change", y = "Significance, -log10(P-value)") +
-  scale_color_manual(values=c("blue", "black", "red")) +
+  scale_color_manual(values=c("red", "black", "blue")) +
   geom_vline(xintercept=c(-0.6, 0.6), col="red") +
   geom_hline(yintercept=-log10(0.05), col="red")
 
@@ -1456,8 +1461,9 @@ ggplot(data=epi_stroma_base, aes(x=Estimate, y=-log10(`Pr(>|t|)`), col=diffexpre
   geom_point() + 
   theme_minimal() +
   geom_text_repel() +
+  ggtitle(str_c("base"))+
   labs(x = "log2 fold change", y = "Significance, -log10(P-value)") +
-  scale_color_manual(values=c("blue", "black", "red")) +
+  scale_color_manual(values=c("red", "black", "blue")) +
   geom_vline(xintercept=c(-0.6, 0.6), col="red") +
   geom_hline(yintercept=-log10(0.05), col="red")
 
@@ -1599,60 +1605,65 @@ for (i in unique_test){
 ggplot(data=`epi_Foveola - Base`, aes(x=Estimate, y=-log10(`Pr(>|t|)`), col=diffexpressed, label=delabel)) +
   geom_point() + 
   theme_minimal() +
+  theme(legend.position = "none")+
   geom_text_repel() +
   labs(x = "Base <-    -> Foveola", y = "Significance, -log10(P-value)") +
-  scale_color_manual(values=c("blue", "black", "red")) +
+  scale_color_manual(values=c("#F8766D", "black", "#A3A500")) +
   geom_vline(xintercept=c(-0.6, 0.6), col="red") +
   geom_hline(yintercept=-log10(0.05), col="red")
 
 #Foveola-isthmus
-ggplot(data=`df_Foveola - Isthmus`, aes(x=Estimate, y=-log10(`Pr(>|t|)`), col=diffexpressed, label=delabel)) +
+ggplot(data=`epi_Foveola - Isthmus`, aes(x=Estimate, y=-log10(`Pr(>|t|)`), col=diffexpressed, label=delabel)) +
   geom_point() + 
   theme_minimal() +
+  theme(legend.position = "none")+
   geom_text_repel() +
   labs(x = "Isthmus <-    -> Foveola", y = "Significance, -log10(P-value)") +
-  scale_color_manual(values=c("blue", "black", "red")) +
+  scale_color_manual(values=c("#00BF7D", "black", "#A3A500")) +
   geom_vline(xintercept=c(-0.6, 0.6), col="red") +
   geom_hline(yintercept=-log10(0.05), col="red")
 
 #Foveola-Neck
-ggplot(data=`df_Foveola - Neck`, aes(x=Estimate, y=-log10(`Pr(>|t|)`), col=diffexpressed, label=delabel)) +
+ggplot(data=`epi_Foveola - Neck`, aes(x=Estimate, y=-log10(`Pr(>|t|)`), col=diffexpressed, label=delabel)) +
   geom_point() + 
   theme_minimal() +
   geom_text_repel() +
+  theme(legend.position = "none")+
   labs(x = "Neck <-    -> Foveola", y = "Significance, -log10(P-value)") +
-  scale_color_manual(values=c("blue", "black", "red")) +
+  scale_color_manual(values=c("#E76BF3", "black", "#A3A500")) +
   geom_vline(xintercept=c(-0.6, 0.6), col="red") +
   geom_hline(yintercept=-log10(0.05), col="red")
 
 #Isthmus - Neck
-ggplot(data=`df_Isthmus - Neck`, aes(x=Estimate, y=-log10(`Pr(>|t|)`), col=diffexpressed, label=delabel)) +
+ggplot(data=`epi_Isthmus - Neck`, aes(x=Estimate, y=-log10(`Pr(>|t|)`), col=diffexpressed, label=delabel)) +
   geom_point() + 
   theme_minimal() +
   geom_text_repel() +
+  theme(legend.position = "none")+
   labs(x = "Neck <-    -> Isthmus", y = "Significance, -log10(P-value)") +
-  scale_color_manual(values=c("blue", "black", "red")) +
+  scale_color_manual(values=c("#E76BF3", "black", "#00BF7D")) +
   geom_vline(xintercept=c(-0.6, 0.6), col="red") +
   geom_hline(yintercept=-log10(0.05), col="red")
 
 #Isthmus - Base
-ggplot(data=`df_Isthmus - Base`, aes(x=Estimate, y=-log10(`Pr(>|t|)`), col=diffexpressed, label=delabel)) +
+ggplot(data=`epi_Isthmus - Base`, aes(x=Estimate, y=-log10(`Pr(>|t|)`), col=diffexpressed, label=delabel)) +
   geom_point() + 
   theme_minimal() +
   geom_text_repel() +
+  theme(legend.position = "none")+
   labs(x = "Base <-    -> Isthmus", y = "Significance, -log10(P-value)") +
-  scale_color_manual(values=c("blue", "black", "red")) +
+  scale_color_manual(values=c("#F8766D", "black", "#00BF7D")) +
   geom_vline(xintercept=c(-0.6, 0.6), col="red") +
   geom_hline(yintercept=-log10(0.05), col="red")
 
 #Neck - Base
-ggplot(data=`df_Neck - Base`, aes(x=Estimate, y=-log10(`Pr(>|t|)`), col=diffexpressed, label=delabel)) +
+ggplot(data=`epi_Neck - Base`, aes(x=Estimate, y=-log10(`Pr(>|t|)`), col=diffexpressed, label=delabel)) +
   geom_point() + 
   theme_minimal() +
   theme(legend.position="none")+
   geom_text_repel() +
   labs(x = "Base <-    -> Neck", y = "Significance, -log10(P-value)") +
-  scale_color_manual(values=c("blue", "black", "red")) +
+  scale_color_manual(values=c("#F8766D", "black", "#E76BF3")) +
   geom_vline(xintercept=c(-0.6, 0.6), col="red") +
   geom_hline(yintercept=-log10(0.05), col="red")
 
