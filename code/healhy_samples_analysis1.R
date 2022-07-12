@@ -2,11 +2,37 @@
 #devtools::install_github("Nanostring-Biostats/NanoStringNCTools")
 #devtools::install_github("Nanostring-Biostats/GeomxTools", ref = "dev")
 #devtools::install_github("Nanostring-Biostats/GeoMxWorkflows", ref = "main")
+#install.packages('umap')
+#BiocManager::install("clusterProfiler")
+#BiocManager::install("pathview")
+#BiocManager::install("enrichplot")
+#install.packages("ggnewscale")
+#install.packages("ggridges")
 
 library(NanoStringNCTools)
 library(GeomxTools)
 library(GeoMxWorkflows)
 library(readxl)
+library(knitr) # with this we can display tables
+library(stringr)
+library(tidyverse)
+library(dplyr) # data manipulation
+library(ggforce) # extension of ggplot. 
+library(ggplot2)
+library(scales) # for percent
+library(reshape2)  # for melt
+library(cowplot) # for plot_grid
+library(umap)
+library(Rtsne)
+library(ggpubr)
+library(pheatmap)  # for heatmap
+library(readr)
+library(ggrepel)
+library(clusterProfiler)
+library(enrichplot)
+library(ggnewscale)
+library(ggridges)
+
 
 setwd("C:/Users/czagami/NanostringData")
 datadir <- file.path("C:/Users/czagami/NanostringData/Data")
@@ -49,9 +75,6 @@ annotation(nano_healthy)
 # in pheno data, there are three different annotations for E-cadherin
 # make all E-cadherin the same annotation
 # then, I want to add annotation for zone of the gland
-
-library(stringr)
-library(tidyverse)
 
 # I created a vector with the right name and then substituted it to the original column.
 # I was getting this error otherwise: Error in as.list.default(X) : 
@@ -100,14 +123,11 @@ pData(nano_healthy)[, c("nuclei")] <- nuclei
 pData(nano_healthy)
 
 # module used
-library(knitr) # with this we can display tables
 pkcs <- annotation(nano_healthy)
 modules <- gsub(".pkc", "", pkcs) # function to replace strings
 kable(data.frame(PKCs = pkcs, modules = modules))
 
 # sample overview
-library(dplyr) # data manipulation
-library(ggforce) # extension of ggplot. 
 
 # select the annotations we want to show, use `` to surround column names with
 # spaces or special symbols
@@ -193,7 +213,6 @@ QC_Summary
 # I will keep them for now anyway
 
 # visualize segment QC
-library(ggplot2)
 
 col_by <- "class"
 
@@ -455,8 +474,6 @@ kable(table(
 
 ## now I can determine the gene detection rate for genes across the study
 
-library(scales) # for percent
-
 # Can't really understand this bit of the code
 # Calculate detection rate:
 LOQ_Mat <- LOQ_Mat[, colnames(target_nano_healthy_SQC)]
@@ -518,7 +535,7 @@ ggplot(plot_detect, aes(x = as.factor(Freq), y = Rate, fill = Rate)) +
     y = "Genes Detected, % of Panel > LOQ"
   )
 
-# 5% of the segments have 2062 genes detected so the thrashold I would use to 
+# 5% of the segments have 2062 genes detected so the threshold I would use to 
 # normalize has to be at least 5% otherwise, with 10% I would loose too many genes
 
 # Subset to target genes detected in at least 5% of the samples.
@@ -530,18 +547,23 @@ target_nano_healthy_norm <-
     fData(target_nano_healthy_SQC)$TargetName %in% neg_probes, ]
 dim(target_nano_healthy_norm)
 
+#try to change the threshold to 3%
+target_nano_healthy_norm3 <- 
+  target_nano_healthy_SQC[fData(target_nano_healthy_SQC)$DetectionRate >= 0.03 |
+                            fData(target_nano_healthy_SQC)$TargetName %in% neg_probes, ]
+dim(target_nano_healthy_norm3)
+
 #### NORMALISATION 
 # The two common methods for normalization of DSP-NGS RNA data are 
 # i) quartile 3 (Q3) or ii) background normalization
 # Given the low negative probe counts we will use Q3. 
 # there should be a separation between these two values to ensure we have stable measure of Q3 signal.
 
-library(reshape2)  # for melt
-library(cowplot) # for plot_grid
 
 # Graph Q3 value vs negGeoMean of Negatives
 
 exprs(target_nano_healthy_norm)
+exprs(target_nano_healthy_norm3)
 
 ann_of_interest <- "class"
 stat_norm <- 
@@ -649,11 +671,7 @@ boxplot(assayDataElement(target_nano_healthy_backg[,1:15], elt = "neg_norm"),
 
 # the plots are slightly different but I am not sure which one is the best to use. 
 
-
 ### unsupervised analysis 
-#install.packages('umap')
-library(umap)
-library(Rtsne)
 
 # update defaults for umap to contain a stable random_state (seed)
 # what does happen if I add or remove seeds?
@@ -742,8 +760,6 @@ Bkg_umap
 
 # plot the umap from the two normalisations one next to the other to see the difference
 
-library(ggpubr)
-
 ggarrange(Bkg_umap + rremove("legend"), Q3_umap, labels = c("background norm", "Q3 norm"), ncol = 2, nrow = 1)
 #to improve the position of the lables, and the distribution of the graphs. 
 
@@ -799,8 +815,6 @@ ggarrange(Bkg_umap + rremove("legend"), Q3_umap, Bkg_tsne + rremove("legend") , 
 #### CLUSTERING HIGH CV GENES####
 
 # from here we might not need it since we might use the counts for our network analysis
-
-library(pheatmap)  # for heatmap
 # create a log2 transform of the data for analysis
 # I will use the Q3 data for now
 
@@ -944,11 +958,10 @@ for (i in c("Foveola", "Isthmus", "Neck", "Base")) {
   
 all_results_from_epi_stroma <- bind_rows(results_1)
 all_results_from_epi_stroma_1 <- bind_rows(results_1)
-library(readr)
-write_excel_csv(results_1[["Foveola"]], file = "results_foveola_EvsS.csv", ",")
-write_excel_csv(results_1[["Isthmus"]], file = "results_isthmus_EvsS.csv", ",")
-write_excel_csv(results_1[["Neck"]], file = "results_neck_EvsS.csv", ",")
-write_excel_csv(results_1[["Base"]], file = "results_base_EvsS.csv", ",")
+#write_excel_csv(results_1[["Foveola"]], file = "results_foveola_EvsS.csv", ",")
+#write_excel_csv(results_1[["Isthmus"]], file = "results_isthmus_EvsS.csv", ",")
+#write_excel_csv(results_1[["Neck"]], file = "results_neck_EvsS.csv", ",")
+#write_excel_csv(results_1[["Base"]], file = "results_base_EvsS.csv", ",")
 
 # Keep significant only
 # REMEMBER: play with threshold
@@ -1091,7 +1104,7 @@ ggplot(data=all_results_from_epi_stroma, aes(x=Estimate, y=-log10(`Pr(>|t|)`), c
 
 # organize the labels nicely using the "ggrepel" package and the geom_text_repel() function
 # load library
-library(ggrepel)
+
 # plot adding up all layers we have seen so far
 ggplot(data=all_results_from_epi_stroma, aes(x=Estimate, y=-log10(`Pr(>|t|)`), col=diffexpressed, label=delabel)) +
   geom_point() + 
@@ -1129,7 +1142,7 @@ ggplot(data=epi_stroma_foveola, aes(x=Estimate, y=-log10(`Pr(>|t|)`), col=diffex
 epi_stroma_foveola_sig1 <- epi_stroma_foveola |> dplyr::filter(abs(Estimate) >= 0.6 & FDR <= 0.05)
 
 #create excel file 
-write_excel_csv(epi_stroma_foveola_sig, file = "epi_stroma_foveola_sig.csv", ",")
+#write_excel_csv(epi_stroma_foveola_sig, file = "epi_stroma_foveola_sig.csv", ",")
 
 
 # create an excel file from results1
@@ -1161,12 +1174,6 @@ ggplot(pData(target_nano_healthy_nQ3),
   theme_bw()
 
 # pathway analysis with ClusterProfiler for FOVEOLA ONLY
-
-#BiocManager::install("clusterProfiler")
-#BiocManager::install("pathview")
-#BiocManager::install("enrichplot")
-library(clusterProfiler)
-library(enrichplot)
 
 colnames(epi_stroma_foveola_sig) <- c("Gene", "Zone", "Contrast", "log2FoldChange", "pvalue", "FDR", "diffexpressed", "delabel")
 epi_stroma_foveola_sig
@@ -1230,14 +1237,11 @@ emapplot(gse, showCategory = 10)
 # Error: Error in has_pairsim(x) : 
 # Term similarity matrix not available. Please use pairwise_termsim function to deal with the results of enrichment analysis.
 
-#install.packages("ggnewscale")
-library(ggnewscale)
 ema <- pairwise_termsim(gse, method = "JC", semData = NULL, showCategory = 200)
 emapplot(ema, showCategory = 10)
 
 # Ridgeplot
-#install.packages("ggridges")
-library(ggridges)
+
 ridgeplot(gse) + labs(x = "enrichment distribution")
 
 cnetplot(gse, categorySize="pvalue", foldChange=epi_stroma_fov_genelist, showCategory = 3)
@@ -1323,7 +1327,7 @@ ggplot(data=epi_stroma_isthmus, aes(x=Estimate, y=-log10(`Pr(>|t|)`), col=diffex
 
 #create excel file 
 
-write_excel_csv(epi_stroma_isthmus_sig, file = "epi_stroma_isthmus_sig.csv", ",")
+#write_excel_csv(epi_stroma_isthmus_sig, file = "epi_stroma_isthmus_sig.csv", ",")
 
 # pathway analysis with ClusterProfiler for ISTHMUS ONLY
 
@@ -1954,8 +1958,78 @@ for (i in list_gse_str_names){
 # install.packages("BiocManager")
 # BiocManager::install("biobroom")
 
+# downloaded the software 
+# raw data needs to be processed with python and then loaded into the software. 
+# I am going to do it as soon as I'll get the access to the server again. 
+
 #----------------------------------------------------------------------------
 # creating code for analysis of gradients
 
+# create a matrix with the normalized counts
+targetmatrix <- target_nano_healthy_nQ3@assayData[["q_norm"]]
+targetmatrix
+
+# create a vector with the names of the samples
+IDs_mtx <- target_nano_healthy_norm@protocolData@data[["SampleID"]]
+# Import the specifics of each sample and save it as a vector 
+names <- read_excel("names.xlsx")
+names1 <- names$names  
+
+# name the sample vector with the specific of the samples
+names(IDs_mtx) <- names1
+IDs_mtx
+
+# rename the colnames of the normalized count matrix
+colnames(targetmatrix)
+colnames(targetmatrix) <- names(IDs_mtx)
+targetmatrix
+
+# calculate the mean of each region of each patient 
+library(dplyr)
+targetdf <- as.data.frame(targetmatrix)
+class(targetdf)
+
+# median of the values 
+# Claudia: how to automate something like this?
+
+targetdf %>%
+  rowwise() %>%
+  mutate(m27_fe = rowMeans(.[,1:10:19]))
 
 
+targetdf %>% 
+  mutate(m27_fe = rowMeans(.[,1:10:19]))
+
+targetdf$m27_fe <- rowMeans(targetdf, c(1,10,19))
+targetdf$m27_fs <- rowMeans(targetdf, c(2,11,20))
+targetdf$m27_is <- rowMeans(targetdf, c(3,12,21))
+targetdf$m27_ie <- rowMeans(targetdf, c(4,13,22))
+targetdf$m27_bs <- rowMeans(targetdf, c(5,14,23))
+targetdf$m27_be <- rowMeans(targetdf, c(6,15,24))
+targetdf$m27_ns <- rowMeans(targetdf, c(7,16,25))
+targetdf$m27_ne <- rowMeans(targetdf, c(8,17,26))
+targetdf$m27_musc <- rowMeans(targetdf, c(9,18,27))
+
+targetdf$m29_fe <- rowMeans(targetdf, c(28,37,46))
+targetdf$m29_fs <- rowMeans(targetdf, c(29,38,47))
+targetdf$m29_is <- rowMeans(targetdf, c(30,39,48))
+targetdf$m29_ie <- rowMeans(targetdf, c(31,40,49))
+targetdf$m29_ns <- rowMeans(targetdf, c(32,41,50))
+targetdf$m29_ne <- rowMeans(targetdf, c(33,42,51))
+targetdf$m29_bs <- rowMeans(targetdf, c(34,43,52))
+targetdf$m29_be <- rowMeans(targetdf, c(35,44,53))
+targetdf$m29_musc <- rowMeans(targetdf, c(36,45,54))
+
+targetdf$m31_fe <- rowMeans(targetdf, c(55,64,73))
+targetdf$m31_fs <- rowMeans(targetdf, c(56,65,74))
+targetdf$m31_is <- rowMeans(targetdf, c(57,66,75))
+targetdf$m31_ie <- rowMeans(targetdf, c(58,67,76))
+targetdf$m31_ns <- rowMeans(targetdf, c(59,68,77))
+targetdf$m31_ne <- rowMeans(targetdf, c(60,69,78))
+targetdf$m31_bs <- rowMeans(targetdf, c(61,70,79))
+targetdf$m31_be <- rowMeans(targetdf, c(62,71,80))
+targetdf$m31_musc <- rowMeans(targetdf, c(63,72,81))
+
+target_zone_mean <-dplyr::select(targetdf, c(82:108))
+
+# there is something I am doing wrong because the values of the means are all the same throughout the df. 
