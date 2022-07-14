@@ -1988,6 +1988,10 @@ targetmatrix
 library(dplyr)
 targetdf <- as.data.frame(targetmatrix)
 class(targetdf)
+write_excel_csv2(targetdf, file = "targets1.csv", ",", row.names = 1)
+
+write.table(targetdf, file = 'targets2.csv', col.names = TRUE,
+            row.names = TRUE, sep = ",")
 
 # median of the values 
 # Claudia: how to automate something like this?
@@ -2033,3 +2037,1478 @@ targetdf$m31_musc <- rowMeans(targetdf, c(63,72,81))
 target_zone_mean <-dplyr::select(targetdf, c(82:108))
 
 # there is something I am doing wrong because the values of the means are all the same throughout the df. 
+
+
+# analysis of the genes found with Francesco method.
+# I am importing the list of genes for the epithelium in all the zones and doing enrichment on this list of genes.
+
+Foveola_genes <- read_excel("EPI.xlsx", sheet = "Foveola")
+Foveola_genes
+Foveola_genes_vec <- Foveola_genes$Foveola 
+
+
+universe_genes <- read_excel("EPI.xlsx", sheet = "UNIVERSE")
+universe_genes
+universe_genes_vec <- universe_genes$universe
+
+#install.packages("msigdbr")
+library(msigdbr)
+msigdbr_species()
+all_gene_sets = msigdbr(species = "human")
+msigdbr_collections()
+
+cp_bioc_gene_sets = msigdbr(species = "human", category = "C2", subcategory = "CP:BIOCARTA")
+cp_kegg_gene_sets = msigdbr(species = "human", category = "C2", subcategory = "CP:KEGG")
+cp_wiki_gene_sets = msigdbr(species = "human", category = "C2", subcategory = "CP:WIKIPATHWAYS")
+
+
+#enrichment with biocarta GO with and without background
+msigdbr_df <- all_gene_sets %>%
+              dplyr::filter(gs_cat == "C2", gs_subcat == "CP:BIOCARTA") 
+
+msigdbr_t2g = msigdbr_df %>% dplyr::distinct(gs_name, gene_symbol) %>% as.data.frame()
+
+GO_fov_epi_bioc <- enricher(
+  Foveola_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  universe = universe_genes_vec, 
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g,
+  TERM2NAME = NA
+)
+
+write.table(GO_fov_epi_bioc@result, file = 'GO_biocarta_fov_epi.csv', sep = ",")
+
+GO_fov_epi1_bioc <- enricher(
+              Foveola_genes_vec,
+              pvalueCutoff = 0.05,
+              pAdjustMethod = "BH",
+              minGSSize = 10,
+              maxGSSize = 500,
+              qvalueCutoff = 0.2,
+              TERM2GENE = msigdbr_t2g,
+              TERM2NAME = NA
+            )
+
+write.table(GO_fov_epi1_bioc@result, file = 'GO_biocarta_fov_epi_NoBKG.csv', sep = ",")
+
+#GO with kegg 
+msigdbr_df_K <- all_gene_sets %>%
+  dplyr::filter(gs_cat == "C2", gs_subcat == "CP:KEGG") 
+
+msigdbr_t2g_K = msigdbr_df_K %>% dplyr::distinct(gs_name, gene_symbol) %>% as.data.frame()
+
+GO_fov_epi_kegg <- enricher(
+  Foveola_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  universe = universe_genes_vec, 
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_K,
+  TERM2NAME = NA
+)
+
+write.table(GO_fov_epi_kegg@result, file = 'GO_KEGG_fov_epi_BKG.csv', sep = ",")
+
+# w/o universe
+GO_fov_epi_kegg1 <- enricher(
+  Foveola_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_K,
+  TERM2NAME = NA
+)
+
+write.table(GO_fov_epi_kegg1@result, file = 'GO_KEGG_fov_epi_noBKG.csv', sep = ",")
+
+#GO with CP:WIKIPATHWAYS
+msigdbr_df_wiki <- all_gene_sets %>%
+  dplyr::filter(gs_cat == "C2", gs_subcat == "CP:WIKIPATHWAYS") 
+
+msigdbr_t2g_wiki = msigdbr_df_wiki %>% dplyr::distinct(gs_name, gene_symbol) %>% as.data.frame()
+
+GO_fov_epi_wiki <- enricher(
+  Foveola_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  universe = universe_genes_vec, 
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_wiki,
+  TERM2NAME = NA
+)
+
+write.table(GO_fov_epi_wiki@result, file = 'GO_WIKI_fov_BKG.csv', sep = ",")
+
+# w/o universe
+GO_fov_epi_wiki1 <- enricher(
+  Foveola_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_wiki,
+  TERM2NAME = NA
+)
+
+write.table(GO_fov_epi_wiki1@result, file = 'GO_WIKI_fov_epi_noBKG.csv', sep = ",")
+
+#GO with CP:PID
+msigdbr_df_pid <- all_gene_sets %>%
+  dplyr::filter(gs_cat == "C2", gs_subcat == "CP:PID") 
+
+msigdbr_t2g_pid = msigdbr_df_pid %>% dplyr::distinct(gs_name, gene_symbol) %>% as.data.frame()
+
+GO_fov_epi_pid <- enricher(
+  Foveola_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  universe = universe_genes_vec, 
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_pid,
+  TERM2NAME = NA
+)
+
+write.table(GO_fov_epi_pid@result, file = 'GO_pid_fov_epi_BKG.csv', sep = ",")
+
+# w/o universe
+GO_fov_epi_pid1 <- enricher(
+  Foveola_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_pid,
+  TERM2NAME = NA
+)
+
+write.table(GO_fov_epi_pid1@result, file = 'GO_pid_fov_epi_noBKG.csv', sep = ",")
+
+# with Cp
+msigdbr_df_cp <- all_gene_sets %>%
+  dplyr::filter(gs_cat == "C2", gs_subcat == "CP") 
+msigdbr_t2g_cp = msigdbr_df_cp %>% dplyr::distinct(gs_name, gene_symbol) %>% as.data.frame()
+
+GO_fov_epi_cp <- enricher(
+  Foveola_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  universe = universe_genes_vec, 
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_cp,
+  TERM2NAME = NA
+)
+
+write.table(GO_fov_epi_cp@result, file = 'GO_cp_fov_epi_BKG.csv', sep = ",")
+
+# w/o universe
+GO_fov_epi_cp1 <- enricher(
+  Foveola_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_cp,
+  TERM2NAME = NA
+)
+
+write.table(GO_fov_epi_cp1@result, file = 'GO_pid_fov_epi_noBKG.csv', sep = ",")
+
+#====Isthmus
+
+Isthmus_genes <- read_excel("EPI.xlsx", sheet = "Isthmus")
+Isthmus_genes
+Isthmus_genes_vec <- Isthmus_genes$Isthmus
+
+
+# enrichment with biocarta GO with and without background
+
+
+GO_ist_epi_bioc <- enricher(
+  Isthmus_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  universe = universe_genes_vec, 
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g,
+  TERM2NAME = NA
+)
+
+write.table(GO_ist_epi_bioc@result, file = 'GO_biocarta_ist_epi_BKG.csv', sep = ",")
+
+GO_ist_epi1_bioc <- enricher(
+  Isthmus_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g,
+  TERM2NAME = NA
+)
+
+write.table(GO_ist_epi1_bioc@result, file = 'GO_biocarta_ist_epi_NoBKG.csv', sep = ",")
+
+#GO with kegg 
+
+
+GO_ist_epi_kegg <- enricher(
+  Isthmus_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  universe = universe_genes_vec, 
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_K,
+  TERM2NAME = NA
+)
+
+write.table(GO_ist_epi_kegg@result, file = 'GO_KEGG_ist_epi_BKG.csv', sep = ",")
+
+# w/o universe
+GO_ist_epi_kegg1 <- enricher(
+  Isthmus_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_K,
+  TERM2NAME = NA
+)
+
+write.table(GO_ist_epi_kegg1@result, file = 'GO_KEGG_ist_epi_noBKG.csv', sep = ",")
+
+#GO with CP:WIKIPATHWAYS
+
+
+GO_ist_epi_wiki <- enricher(
+  Isthmus_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  universe = universe_genes_vec, 
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_wiki,
+  TERM2NAME = NA
+)
+
+write.table(GO_ist_epi_wiki@result, file = 'GO_WIKI_ist_BKG.csv', sep = ",")
+
+# w/o universe
+GO_ist_epi_wiki1 <- enricher(
+  Isthmus_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_wiki,
+  TERM2NAME = NA
+)
+
+write.table(GO_ist_epi_wiki1@result, file = 'GO_WIKI_ist_epi_noBKG.csv', sep = ",")
+
+#GO with CP:PID
+
+
+GO_ist_epi_pid <- enricher(
+  Isthmus_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  universe = universe_genes_vec, 
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_pid,
+  TERM2NAME = NA
+)
+
+write.table(GO_ist_epi_pid@result, file = 'GO_pid_ist_epi_BKG.csv', sep = ",")
+
+# w/o universe
+GO_ist_epi_pid1 <- enricher(
+  Isthmus_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_pid,
+  TERM2NAME = NA
+)
+
+write.table(GO_ist_epi_pid1@result, file = 'GO_pid_ist_epi_noBKG.csv', sep = ",")
+
+# with Cp
+
+GO_ist_epi_cp <- enricher(
+  Isthmus_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  universe = universe_genes_vec, 
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_cp,
+  TERM2NAME = NA
+)
+
+write.table(GO_ist_epi_cp@result, file = 'GO_cp_ist_epi_BKG.csv', sep = ",")
+
+# w/o universe
+GO_ist_epi_cp1 <- enricher(
+  Isthmus_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_cp,
+  TERM2NAME = NA
+)
+
+write.table(GO_ist_epi_cp1@result, file = 'GO_pid_ist_epi_noBKG.csv', sep = ",")
+
+#====Neck
+
+Neck_genes <- read_excel("EPI.xlsx", sheet = "Neck")
+Neck_genes
+Neck_genes_vec <- Neck_genes$Neck
+
+
+# enrichment with biocarta GO with and without background
+
+
+GO_neck_epi_bioc <- enricher(
+  Neck_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  universe = universe_genes_vec, 
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g,
+  TERM2NAME = NA
+)
+
+write.table(GO_neck_epi_bioc@result, file = 'GO_biocarta_neck_epi_BKG.csv', sep = ",")
+
+GO_neck_epi1_bioc <- enricher(
+  Neck_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g,
+  TERM2NAME = NA
+)
+
+write.table(GO_neck_epi1_bioc@result, file = 'GO_biocarta_neck_epi_NoBKG.csv', sep = ",")
+
+#GO with kegg 
+
+
+GO_neck_epi_kegg <- enricher(
+  Neck_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  universe = universe_genes_vec, 
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_K,
+  TERM2NAME = NA
+)
+
+write.table(GO_neck_epi_kegg@result, file = 'GO_KEGG_neck_epi_BKG.csv', sep = ",")
+
+# w/o universe
+GO_neck_epi_kegg1 <- enricher(
+  Neck_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_K,
+  TERM2NAME = NA
+)
+
+write.table(GO_neck_epi_kegg1@result, file = 'GO_KEGG_neck_epi_noBKG.csv', sep = ",")
+
+#GO with CP:WIKIPATHWAYS
+
+
+GO_neck_epi_wiki <- enricher(
+  Neck_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  universe = universe_genes_vec, 
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_wiki,
+  TERM2NAME = NA
+)
+
+write.table(GO_neck_epi_wiki@result, file = 'GO_WIKI_neck_BKG.csv', sep = ",")
+
+# w/o universe
+GO_neck_epi_wiki1 <- enricher(
+  Neck_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_wiki,
+  TERM2NAME = NA
+)
+
+write.table(GO_neck_epi_wiki1@result, file = 'GO_WIKI_neck_epi_noBKG.csv', sep = ",")
+
+#GO with CP:PID
+
+
+GO_neck_epi_pid <- enricher(
+  Neck_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  universe = universe_genes_vec, 
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_pid,
+  TERM2NAME = NA
+)
+
+write.table(GO_neck_epi_pid@result, file = 'GO_pid_neck_epi_BKG.csv', sep = ",")
+
+# w/o universe
+GO_neck_epi_pid1 <- enricher(
+  Neck_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_pid,
+  TERM2NAME = NA
+)
+
+write.table(GO_neck_epi_pid1@result, file = 'GO_pid_neck_epi_noBKG.csv', sep = ",")
+
+# with Cp
+
+GO_neck_epi_cp <- enricher(
+  Neck_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  universe = universe_genes_vec, 
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_cp,
+  TERM2NAME = NA
+)
+
+write.table(GO_neck_epi_cp@result, file = 'GO_cp_neck_epi_BKG.csv', sep = ",")
+
+# w/o universe
+GO_neck_epi_cp1 <- enricher(
+  Neck_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_cp,
+  TERM2NAME = NA
+)
+
+write.table(GO_neck_epi_cp1@result, file = 'GO_pid_neck_epi_noBKG.csv', sep = ",")
+
+#====Base
+
+Base_genes <- read_excel("EPI.xlsx", sheet = "Base")
+Base_genes
+Base_genes_vec <- Base_genes$Base
+
+
+# enrichment with biocarta GO with and without background
+
+
+GO_base_epi_bioc <- enricher(
+  Base_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  universe = universe_genes_vec, 
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g,
+  TERM2NAME = NA
+)
+
+write.table(GO_base_epi_bioc@result, file = 'GO_biocarta_base_epi_BKG.csv', sep = ",")
+
+GO_base_epi1_bioc <- enricher(
+  Base_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g,
+  TERM2NAME = NA
+)
+
+write.table(GO_base_epi1_bioc@result, file = 'GO_biocarta_base_epi_NoBKG.csv', sep = ",")
+
+#GO with kegg 
+
+
+GO_base_epi_kegg <- enricher(
+  Base_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  universe = universe_genes_vec, 
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_K,
+  TERM2NAME = NA
+)
+
+write.table(GO_base_epi_kegg@result, file = 'GO_KEGG_base_epi_BKG.csv', sep = ",")
+
+# w/o universe
+GO_base_epi_kegg1 <- enricher(
+  Base_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_K,
+  TERM2NAME = NA
+)
+
+write.table(GO_base_epi_kegg1@result, file = 'GO_KEGG_base_epi_noBKG.csv', sep = ",")
+
+#GO with CP:WIKIPATHWAYS
+
+
+GO_base_epi_wiki <- enricher(
+  Base_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  universe = universe_genes_vec, 
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_wiki,
+  TERM2NAME = NA
+)
+
+write.table(GO_base_epi_wiki@result, file = 'GO_WIKI_base_BKG.csv', sep = ",")
+
+# w/o universe
+GO_base_epi_wiki1 <- enricher(
+  Base_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_wiki,
+  TERM2NAME = NA
+)
+
+write.table(GO_base_epi_wiki1@result, file = 'GO_WIKI_base_epi_noBKG.csv', sep = ",")
+
+#GO with CP:PID
+
+
+GO_base_epi_pid <- enricher(
+  Base_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  universe = universe_genes_vec, 
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_pid,
+  TERM2NAME = NA
+)
+
+write.table(GO_base_epi_pid@result, file = 'GO_pid_base_epi_BKG.csv', sep = ",")
+
+# w/o universe
+GO_base_epi_pid1 <- enricher(
+  Base_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_pid,
+  TERM2NAME = NA
+)
+
+write.table(GO_base_epi_pid1@result, file = 'GO_pid_base_epi_noBKG.csv', sep = ",")
+
+# with Cp
+
+GO_base_epi_cp <- enricher(
+  Base_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  universe = universe_genes_vec, 
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_cp,
+  TERM2NAME = NA
+)
+
+write.table(GO_base_epi_cp@result, file = 'GO_cp_base_epi_BKG.csv', sep = ",")
+
+# w/o universe
+GO_base_epi_cp1 <- enricher(
+  Base_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_cp,
+  TERM2NAME = NA
+)
+
+write.table(GO_base_epi_cp1@result, file = 'GO_pid_base_epi_noBKG.csv', sep = ",")
+
+
+#========================STROMA====================
+#====Foveola
+
+Fov_str_genes <- read_excel("STROMA.xlsx", sheet = "Foveola")
+Fov_str_genes
+Fov_str_genes_vec <- Fov_str_genes$FOVEOLA
+
+
+# enrichment with biocarta GO with and without background
+
+
+GO_fov_str_bioc <- enricher(
+  Fov_str_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  universe = universe_genes_vec, 
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g,
+  TERM2NAME = NA
+)
+
+write.table(GO_fov_str_bioc@result, file = 'GO_biocarta_fov_str_BKG.csv', sep = ",")
+
+GO_fov_str1_bioc <- enricher(
+  Fov_str_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g,
+  TERM2NAME = NA
+)
+
+write.table(GO_fov_str1_bioc@result, file = 'GO_biocarta_fov_str_NoBKG.csv', sep = ",")
+
+#GO with kegg 
+
+
+GO_fov_str_kegg <- enricher(
+  Fov_str_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  universe = universe_genes_vec, 
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_K,
+  TERM2NAME = NA
+)
+
+write.table(GO_fov_str_kegg@result, file = 'GO_KEGG_fov_str_BKG.csv', sep = ",")
+
+# w/o universe
+GO_fov_str_kegg1 <- enricher(
+  Fov_str_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_K,
+  TERM2NAME = NA
+)
+
+write.table(GO_fov_str_kegg1@result, file = 'GO_KEGG_fov_str_noBKG.csv', sep = ",")
+
+#GO with CP:WIKIPATHWAYS
+
+
+GO_fov_str_wiki <- enricher(
+  Fov_str_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  universe = universe_genes_vec, 
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_wiki,
+  TERM2NAME = NA
+)
+
+write.table(GO_fov_str_wiki@result, file = 'GO_WIKI_fov_str_BKG.csv', sep = ",")
+
+# w/o universe
+GO_fov_str_wiki1 <- enricher(
+  Fov_str_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_wiki,
+  TERM2NAME = NA
+)
+
+write.table(GO_fov_str_wiki1@result, file = 'GO_WIKI_fov_str_noBKG.csv', sep = ",")
+
+#GO with CP:PID
+
+
+GO_fov_str_pid <- enricher(
+  Fov_str_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  universe = universe_genes_vec, 
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_pid,
+  TERM2NAME = NA
+)
+
+write.table(GO_fov_str_pid@result, file = 'GO_pid_fov_str_BKG.csv', sep = ",")
+
+# w/o universe
+GO_fov_str_pid1 <- enricher(
+  Fov_str_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_pid,
+  TERM2NAME = NA
+)
+
+write.table(GO_fov_str_pid1@result, file = 'GO_pid_fov_str_noBKG.csv', sep = ",")
+
+# with Cp
+
+GO_fov_str_cp <- enricher(
+  Fov_str_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  universe = universe_genes_vec, 
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_cp,
+  TERM2NAME = NA
+)
+
+write.table(GO_fov_str_cp@result, file = 'GO_cp_fov_str_BKG.csv', sep = ",")
+
+# w/o universe
+GO_fov_str_cp1 <- enricher(
+  Fov_str_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_cp,
+  TERM2NAME = NA
+)
+
+write.table(GO_fov_str_cp1@result, file = 'GO_pid_fov_str_noBKG.csv', sep = ",")
+
+
+####-----------Isthmus------------------
+
+Ist_str_genes <- read_excel("STROMA.xlsx", sheet = "Isthmus")
+Ist_str_genes
+Ist_str_genes_vec <- Ist_str_genes$ISTHMUS
+
+
+# enrichment with biocarta GO with and without background
+
+
+GO_ist_str_bioc <- enricher(
+  Ist_str_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  universe = universe_genes_vec, 
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g,
+  TERM2NAME = NA
+)
+
+write.table(GO_Ist_str_bioc@result, file = 'GO_biocarta_Ist_str_BKG.csv', sep = ",")
+
+GO_fov_str1_bioc <- enricher(
+  Ist_str_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g,
+  TERM2NAME = NA
+)
+
+write.table(GO_Ist_str1_bioc@result, file = 'GO_biocarta_Ist_str_NoBKG.csv', sep = ",")
+
+#GO with kegg 
+
+
+GO_Ist_str_kegg <- enricher(
+  Ist_str_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  universe = universe_genes_vec, 
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_K,
+  TERM2NAME = NA
+)
+
+write.table(GO_Ist_str_kegg@result, file = 'GO_KEGG_Ist_str_BKG.csv', sep = ",")
+
+# w/o universe
+GO_Ist_str_kegg1 <- enricher(
+  Ist_str_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_K,
+  TERM2NAME = NA
+)
+
+write.table(GO_Ist_str_kegg1@result, file = 'GO_KEGG_Ist_str_noBKG.csv', sep = ",")
+
+#GO with CP:WIKIPATHWAYS
+
+
+GO_Ist_str_wiki <- enricher(
+  Ist_str_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  universe = universe_genes_vec, 
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_wiki,
+  TERM2NAME = NA
+)
+
+write.table(GO_Ist_str_wiki@result, file = 'GO_WIKI_Ist_str_BKG.csv', sep = ",")
+
+# w/o universe
+GO_Ist_str_wiki1 <- enricher(
+  Ist_str_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_wiki,
+  TERM2NAME = NA
+)
+
+write.table(GO_Ist_str_wiki1@result, file = 'GO_WIKI_Ist_str_noBKG.csv', sep = ",")
+
+#GO with CP:PID
+
+
+GO_Ist_str_pid <- enricher(
+  Ist_str_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  universe = universe_genes_vec, 
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_pid,
+  TERM2NAME = NA
+)
+
+write.table(GO_Ist_str_pid@result, file = 'GO_pid_Ist_str_BKG.csv', sep = ",")
+
+# w/o universe
+GO_Ist_str_pid1 <- enricher(
+  Ist_str_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_pid,
+  TERM2NAME = NA
+)
+
+write.table(GO_Ist_str_pid1@result, file = 'GO_pid_Ist_str_noBKG.csv', sep = ",")
+
+# with Cp
+
+GO_Ist_str_cp <- enricher(
+  Ist_str_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  universe = universe_genes_vec, 
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_cp,
+  TERM2NAME = NA
+)
+
+write.table(GO_Ist_str_cp@result, file = 'GO_cp_Ist_str_BKG.csv', sep = ",")
+
+# w/o universe
+GO_Ist_str_cp1 <- enricher(
+  Ist_str_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_cp,
+  TERM2NAME = NA
+)
+
+write.table(GO_Ist_str_cp1@result, file = 'GO_pid_Ist_str_noBKG.csv', sep = ",")
+
+####-----------NECK------------------
+
+Neck_str_genes <- read_excel("STROMA.xlsx", sheet = "Neck")
+Neck_str_genes
+Neck_str_genes_vec <- Neck_str_genes$NECK
+
+
+# enrichment with biocarta GO with and without background
+
+
+GO_Neck_str_bioc <- enricher(
+  Neck_str_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  universe = universe_genes_vec, 
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g,
+  TERM2NAME = NA
+)
+
+write.table(GO_Neck_str_bioc@result, file = 'GO_biocarta_Neck_str_BKG.csv', sep = ",")
+
+GO_Neck_str1_bioc <- enricher(
+  Neck_str_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g,
+  TERM2NAME = NA
+)
+
+write.table(GO_Neck_str1_bioc@result, file = 'GO_biocarta_Neck_str_NoBKG.csv', sep = ",")
+
+#GO with kegg 
+
+
+GO_Neck_str_kegg <- enricher(
+  Neck_str_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  universe = universe_genes_vec, 
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_K,
+  TERM2NAME = NA
+)
+
+write.table(GO_Neck_str_kegg@result, file = 'GO_KEGG_Neck_str_BKG.csv', sep = ",")
+
+# w/o universe
+GO_Neck_str_kegg1 <- enricher(
+  Neck_str_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_K,
+  TERM2NAME = NA
+)
+
+write.table(GO_Neck_str_kegg1@result, file = 'GO_KEGG_Neck_str_noBKG.csv', sep = ",")
+
+#GO with CP:WIKIPATHWAYS
+
+
+GO_Neck_str_wiki <- enricher(
+  Neck_str_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  universe = universe_genes_vec, 
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_wiki,
+  TERM2NAME = NA
+)
+
+write.table(GO_Neck_str_wiki@result, file = 'GO_WIKI_Neck_str_BKG.csv', sep = ",")
+
+# w/o universe
+GO_Neck_str_wiki1 <- enricher(
+  Neck_str_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_wiki,
+  TERM2NAME = NA
+)
+
+write.table(GO_Neck_str_wiki1@result, file = 'GO_WIKI_Neck_str_noBKG.csv', sep = ",")
+
+#GO with CP:PID
+
+
+GO_Neck_str_pid <- enricher(
+  Neck_str_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  universe = universe_genes_vec, 
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_pid,
+  TERM2NAME = NA
+)
+
+write.table(GO_Neck_str_pid@result, file = 'GO_pid_Neck_str_BKG.csv', sep = ",")
+
+# w/o universe
+GO_Neck_str_pid1 <- enricher(
+  Neck_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_pid,
+  TERM2NAME = NA
+)
+
+write.table(GO_Neck_str_pid1@result, file = 'GO_pid_Neck_str_noBKG.csv', sep = ",")
+
+# with Cp
+
+GO_Neck_str_cp <- enricher(
+  Neck_str_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  universe = universe_genes_vec, 
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_cp,
+  TERM2NAME = NA
+)
+
+write.table(GO_Neck_str_cp@result, file = 'GO_cp_Neck_str_BKG.csv', sep = ",")
+
+# w/o universe
+GO_Neck_str_cp1 <- enricher(
+  Neck_str_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_cp,
+  TERM2NAME = NA
+)
+
+write.table(GO_Neck_str_cp1@result, file = 'GO_pid_Neck_str_noBKG.csv', sep = ",")
+
+####-----------BASE------------------
+
+Base_str_genes <- read_excel("STROMA.xlsx", sheet = "Base")
+Base_str_genes
+Base_str_genes_vec <- Base_str_genes$BASE
+
+
+# enrichment with biocarta GO with and without background
+
+
+GO_Base_str_bioc <- enricher(
+  Base_str_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  universe = universe_genes_vec, 
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g,
+  TERM2NAME = NA
+)
+
+write.table(GO_Base_str_bioc@result, file = 'GO_biocarta_Base_str_BKG.csv', sep = ",")
+
+GO_Base_str1_bioc <- enricher(
+  Base_str_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g,
+  TERM2NAME = NA
+)
+
+write.table(GO_Base_str1_bioc@result, file = 'GO_biocarta_Base_str_NoBKG.csv', sep = ",")
+
+#GO with kegg 
+
+
+GO_Base_str_kegg <- enricher(
+  Base_str_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  universe = universe_genes_vec, 
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_K,
+  TERM2NAME = NA
+)
+
+write.table(GO_Base_str_kegg@result, file = 'GO_KEGG_Base_str_BKG.csv', sep = ",")
+
+# w/o universe
+GO_Base_str_kegg1 <- enricher(
+  Base_str_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_K,
+  TERM2NAME = NA
+)
+
+write.table(GO_Base_str_kegg1@result, file = 'GO_KEGG_Base_str_noBKG.csv', sep = ",")
+
+#GO with CP:WIKIPATHWAYS
+
+
+GO_Base_str_wiki <- enricher(
+  Base_str_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  universe = universe_genes_vec, 
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_wiki,
+  TERM2NAME = NA
+)
+
+write.table(GO_Base_str_wiki@result, file = 'GO_WIKI_Base_str_BKG.csv', sep = ",")
+
+# w/o universe
+GO_Base_str_wiki1 <- enricher(
+  Base_str_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_wiki,
+  TERM2NAME = NA
+)
+
+write.table(GO_Base_str_wiki1@result, file = 'GO_WIKI_Base_str_noBKG.csv', sep = ",")
+
+#GO with CP:PID
+
+
+GO_Base_str_pid <- enricher(
+  Base_str_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  universe = universe_genes_vec, 
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_pid,
+  TERM2NAME = NA
+)
+
+write.table(GO_Base_str_pid@result, file = 'GO_pid_Base_str_BKG.csv', sep = ",")
+
+# w/o universe
+GO_Base_str_pid1 <- enricher(
+  Base_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_pid,
+  TERM2NAME = NA
+)
+
+write.table(GO_Base_str_pid1@result, file = 'GO_pid_Base_str_noBKG.csv', sep = ",")
+
+# with Cp
+
+GO_Base_str_cp <- enricher(
+  Base_str_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  universe = universe_genes_vec, 
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_cp,
+  TERM2NAME = NA
+)
+
+write.table(GO_Base_str_cp@result, file = 'GO_cp_Base_str_BKG.csv', sep = ",")
+
+# w/o universe
+GO_Base_str_cp1 <- enricher(
+  Base_str_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_cp,
+  TERM2NAME = NA
+)
+
+write.table(GO_Base_str_cp1@result, file = 'GO_pid_Base_str_noBKG.csv', sep = ",")
+
+####-----------MUSCULARIS------------------
+
+Musc_str_genes <- read_excel("STROMA.xlsx", sheet = "Muscularis")
+Musc_str_genes
+Musc_str_genes_vec <- Musc_str_genes$MUSC
+
+
+# enrichment with biocarta GO with and without background
+
+
+GO_Musc_str_bioc <- enricher(
+  Musc_str_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  universe = universe_genes_vec, 
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g,
+  TERM2NAME = NA
+)
+
+write.table(GO_Musc_str_bioc@result, file = 'GO_biocarta_Musc_str_BKG.csv', sep = ",")
+
+GO_Musc_str1_bioc <- enricher(
+  Musc_str_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g,
+  TERM2NAME = NA
+)
+
+write.table(GO_Musc_str1_bioc@result, file = 'GO_biocarta_Musc_str_NoBKG.csv', sep = ",")
+
+#GO with kegg 
+
+
+GO_Musc_str_kegg <- enricher(
+  Musc_str_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  universe = universe_genes_vec, 
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_K,
+  TERM2NAME = NA
+)
+
+write.table(GO_Musc_str_kegg@result, file = 'GO_KEGG_Musc_str_BKG.csv', sep = ",")
+
+# w/o universe
+GO_Musc_str_kegg1 <- enricher(
+  Musc_str_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_K,
+  TERM2NAME = NA
+)
+
+write.table(GO_Musc_str_kegg1@result, file = 'GO_KEGG_Musc_str_noBKG.csv', sep = ",")
+
+#GO with CP:WIKIPATHWAYS
+
+
+GO_Musc_str_wiki <- enricher(
+  Musc_str_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  universe = universe_genes_vec, 
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_wiki,
+  TERM2NAME = NA
+)
+
+write.table(GO_Musc_str_wiki@result, file = 'GO_WIKI_Musc_str_BKG.csv', sep = ",")
+
+# w/o universe
+GO_Musc_str_wiki1 <- enricher(
+  Musc_str_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_wiki,
+  TERM2NAME = NA
+)
+
+write.table(GO_Musc_str_wiki1@result, file = 'GO_WIKI_Musc_str_noBKG.csv', sep = ",")
+
+#GO with CP:PID
+
+
+GO_Musc_str_pid <- enricher(
+  Musc_str_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  universe = universe_genes_vec, 
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_pid,
+  TERM2NAME = NA
+)
+
+write.table(GO_Musc_str_pid@result, file = 'GO_pid_Musc_str_BKG.csv', sep = ",")
+
+# w/o universe
+GO_Musc_str_pid1 <- enricher(
+  Musc_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_pid,
+  TERM2NAME = NA
+)
+
+write.table(GO_Musc_str_pid1@result, file = 'GO_pid_Musc_str_noBKG.csv', sep = ",")
+
+# with Cp
+
+GO_Musc_str_cp <- enricher(
+  Musc_str_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  universe = universe_genes_vec, 
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_cp,
+  TERM2NAME = NA
+)
+
+write.table(GO_Musc_str_cp@result, file = 'GO_cp_Musc_str_BKG.csv', sep = ",")
+
+# w/o universe
+GO_Musc_str_cp1 <- enricher(
+  Musc_str_genes_vec,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  minGSSize = 10,
+  maxGSSize = 500,
+  qvalueCutoff = 0.2,
+  TERM2GENE = msigdbr_t2g_cp,
+  TERM2NAME = NA
+)
+
+write.table(GO_Musc_str_cp1@result, file = 'GO_pid_Musc_str_noBKG.csv', sep = ",")
